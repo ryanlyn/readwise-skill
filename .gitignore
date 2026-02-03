@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+.env
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.cache/
+
+# macOS
+.DS_Store
+
+# Tooling
+.idea/
+.vscode/
+*.code-workspace
+
+# Generated skill artifacts
+**/agents/openai.yaml
