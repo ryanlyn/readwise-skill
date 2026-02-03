@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import sys
 import time
 from dataclasses import dataclass
 from typing import Iterable, Optional
@@ -43,6 +44,23 @@ class APIRequestError(RuntimeError):
     pass
 
 
+def _format_rate_limit_notice(headers: requests.structures.CaseInsensitiveDict[str]) -> str:
+    info = RateLimitInfo.from_headers(headers)
+    parts = []
+    if info.limit is not None:
+        parts.append(f"limit={info.limit}")
+    if info.remaining is not None:
+        parts.append(f"remaining={info.remaining}")
+    if info.reset is not None:
+        parts.append(f"reset={info.reset}")
+    retry_after = headers.get("Retry-After")
+    if retry_after:
+        parts.append(f"retry_after={retry_after}")
+    if not parts:
+        return ""
+    return "Rate limit headers: " + ", ".join(parts)
+
+
 def request_with_backoff(
     session: requests.Session,
     method: str,
@@ -69,6 +87,12 @@ def request_with_backoff(
             else:
                 sleep_for = BACKOFF_BASE ** attempt
             sleep_for += random.uniform(0, JITTER)
+            rate_notice = _format_rate_limit_notice(response.headers)
+            if rate_notice:
+                print(
+                    f"Throttled (HTTP {response.status_code}); backing off for {sleep_for:.2f}s. {rate_notice}",
+                    file=sys.stderr,
+                )
             time.sleep(sleep_for)
         except requests.RequestException as exc:
             last_error = exc
