@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1337,
+    "title": "Meditations",
+    "author": "Marcus Aurelius",
+    "category": "books",
+    "source": "Kindle",
+    "num_highlights": 120,
+    "updated": "2020-04-06T12:30:52.318552Z",
+    "cover_image_url": "https://example.com/images/meditations.jpg"
+  },
+  {
+    "id": 2048,
+    "title": "Design Systems and Team Flow",
+    "author": "Jane Doe",
+    "category": "articles",
+    "source": "Web",
+    "num_highlights": 5,
+    "updated": "2021-01-15T08:30:00Z",
+    "cover_image_url": "https://example.com/images/design-systems.jpg"
+  }
+]

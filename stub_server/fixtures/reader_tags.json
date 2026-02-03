@@ -1,0 +1,14 @@
+[
+  {
+    "key": "first-tag",
+    "name": "First tag"
+  },
+  {
+    "key": "second-tag",
+    "name": "Second tag"
+  },
+  {
+    "key": "favorite",
+    "name": "Favorite"
+  }
+]
