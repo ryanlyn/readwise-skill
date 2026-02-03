@@ -115,8 +115,10 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--generated", action="store_true")
 
     listing = docs_sub.add_parser("list", help="List documents")
+    listing.add_argument("--id", dest="document_id")
     listing.add_argument("--category")
     listing.add_argument("--tag")
+    listing.add_argument("--location")
     listing.add_argument("--updated-after")
     listing.add_argument("--limit", type=int, default=50)
 
@@ -134,6 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     delete.add_argument("--yes", action="store_true")
 
     pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
+    pull.add_argument("--location")
     pull.add_argument("--since")
     pull.add_argument("--limit", type=int, default=50)
 
@@ -152,10 +155,14 @@ def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
 
 def handle_list(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
+    if args.document_id:
+        params["id"] = args.document_id
     if args.category:
         params["category"] = args.category
     if args.tag:
         params["tag"] = args.tag
+    if args.location:
+        params["location"] = args.location
     if args.updated_after:
         params["updatedAfter"] = args.updated_after
     docs = []
@@ -199,6 +206,8 @@ def handle_delete(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
 
 def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
+    if args.location:
+        params["location"] = args.location
     if args.since:
         params["updatedAfter"] = args.since
     docs = []
