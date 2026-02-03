@@ -142,7 +142,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
     payload = _load_document_body(args)
-    if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
+    if (
+        not payload.get("url")
+        and not payload.get("html")
+        and not payload.get("source_url")
+        and not payload.get("file_path")
+    ):
         raise ValueError("Provide --url, --content, or --file")
     if args.dry_run:
         print(json.dumps(payload, indent=2))
