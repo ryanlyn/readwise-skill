@@ -13,6 +13,7 @@ from rw_shared import (
     build_location_payload,
     build_tags,
     get_readwise_token,
+    parse_iso_datetime,
     parse_tags,
     render_output,
     request_with_backoff,
@@ -190,6 +191,13 @@ def _normalize_bulk_payload(entry: Dict[str, Any], default_generated: bool) -> D
     return payload
 
 
+def _normalize_datetime_arg(label: str, value: str) -> str:
+    try:
+        return parse_iso_datetime(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be an ISO date or datetime") from exc
+
+
 def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     payloads: List[Dict[str, Any]] = []
     if args.bulk_file:
@@ -231,9 +239,9 @@ def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> 
     if args.tag:
         params["tag"] = args.tag
     if args.updated_after:
-        params["updatedAfter"] = args.updated_after
+        params["updatedAfter"] = _normalize_datetime_arg("--updated-after", args.updated_after)
     if args.updated_before:
-        params["updatedBefore"] = args.updated_before
+        params["updatedBefore"] = _normalize_datetime_arg("--updated-before", args.updated_before)
     if args.category:
         params["category"] = args.category
     results = []
@@ -247,9 +255,9 @@ def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> 
 def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
     params = {}
     if args.since:
-        params["updatedAfter"] = args.since
+        params["updatedAfter"] = _normalize_datetime_arg("--since", args.since)
     if args.until:
-        params["updatedBefore"] = args.until
+        params["updatedBefore"] = _normalize_datetime_arg("--until", args.until)
     params["limit"] = args.limit
     return client.daily_review(params)
 
