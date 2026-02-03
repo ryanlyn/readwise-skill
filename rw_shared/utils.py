@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
@@ -62,3 +63,21 @@ def load_bulk_payloads(path: str) -> Iterable[dict]:
         if not stripped:
             continue
         yield json.loads(stripped)
+
+
+def parse_iso_datetime(value: str) -> str:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("Date value cannot be empty")
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            parsed_date = date.fromisoformat(normalized)
+        except ValueError as exc:
+            raise ValueError(f"Invalid date/time: {value}") from exc
+        parsed = datetime.combine(parsed_date, datetime.min.time(), tzinfo=timezone.utc)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
