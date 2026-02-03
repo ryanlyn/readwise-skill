@@ -16,7 +16,6 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - `python scripts/readwise_client.py highlight create --text ... [--generated] [--tags t1,t2] [--dry-run]`  
   Creates a highlight or batch (`--bulk-file ndjson`). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
 - `... highlight update <id> [--title --note --tags --generated]` – partial updates, respects `--dry-run`.
-- `... highlight delete <id> [--yes]` – prompts before deleting unless `--yes`.
 - `... highlight show <id>` – fetch highlight details.
 - `... highlights list --book-id 123 --tag focus --updated-after 2026-02-01` – cursor-based listing with optional limit + output format (`--output json|markdown|plain`).
 - `... highlights review --since 2026-02-01` – wraps the daily review/export endpoint and returns JSON you can render to Markdown/CSV upstream.
@@ -29,7 +28,7 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - **Dry runs**: add `--dry-run` to print the exact JSON payload without calling the API. Useful when iterating on agent prompts.
 
 ## Scripts
-- `scripts/readwise_client.py`: full-featured CLI covering highlight CRUD, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.
+- `scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.
 - Shared helpers live in `rw_shared/` (auth, HTTP retries, tag/location utilities); import from there when extending functionality to keep behavior consistent.
 
 ## References
