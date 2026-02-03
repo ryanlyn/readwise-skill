@@ -1,115 +1,238 @@
-"""Utilities for interacting with the Readwise Reader API."""
+"""CLI for interacting with the Readwise Reader API."""
 
 from __future__ import annotations
 
 import argparse
-import os
+import json
 import sys
-from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Optional
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional
 
 import requests
 
+from rw_shared import (
+    build_tags,
+    get_reader_token,
+    parse_tags,
+    render_output,
+    request_with_backoff,
+    resolve_highlight_text,
+)
+
 BASE_URL = "https://readwise.io/api/reader"
-DEFAULT_PAGE_SIZE = 100
+USER_AGENT = "readwise-reader-skill/0.1"
 
 
-def _headers(token: str) -> Dict[str, str]:
-    return {"Authorization": f"Token {token}"}
+def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    if args.url:
+        payload["url"] = args.url
+    if args.content:
+        payload["html"] = args.content
+    if args.file:
+        payload["file_path"] = args.file
+    for field in ("title", "summary"):
+        value = getattr(args, field, None)
+        if value:
+            payload[field] = value
+    tags = build_tags(parse_tags(getattr(args, "tags", None)), args.generated)
+    if tags:
+        payload["tags"] = tags
+    if args.category:
+        payload["category"] = args.category
+    if args.labels:
+        payload["labels"] = parse_tags(args.labels)
+    return payload
 
 
-def get_token(explicit: Optional[str] = None) -> str:
-    token = explicit or os.getenv("READWISE_READER_TOKEN")
-    if not token:
-        raise RuntimeError("Set READWISE_READER_TOKEN or pass --token")
-    return token
-
-
-@dataclass
 class ReaderClient:
-    session: requests.Session
+    def __init__(self, token: str):
+        self.session = requests.Session()
+        self.session.headers.update(
+            {
+                "Authorization": f"Token {token}",
+                "User-Agent": USER_AGENT,
+            }
+        )
 
-    @classmethod
-    def from_env(cls, token_override: Optional[str] = None) -> "ReaderClient":
-        token = get_token(token_override)
-        session = requests.Session()
-        session.headers.update(_headers(token))
-        return cls(session=session)
+    def _request(self, method: str, path: str, **kwargs) -> requests.Response:
+        url = f"{BASE_URL}{path}"
+        return request_with_backoff(self.session, method, url, **kwargs)
 
-    def list_documents(self, **filters: Any) -> Iterable[Dict[str, Any]]:
-        params = {"page_size": DEFAULT_PAGE_SIZE, **filters}
-        next_cursor: Optional[str] = None
+    def create_document(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if "file_path" in payload:
+            file_path = Path(payload.pop("file_path"))
+            file_bytes = file_path.read_bytes()
+            upload_resp = self._request("post", "/document/upload", files={"file": (file_path.name, file_bytes)})
+            upload_json = upload_resp.json()
+            payload["source_url"] = upload_json["source_url"]
+        response = self._request("post", "/document/add", json=payload)
+        return response.json()
+
+    def list_documents(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+        cursor: Optional[str] = None
+        params = dict(params)
         while True:
-            current = dict(params)
-            if next_cursor:
-                current["page_cursor"] = next_cursor
-            resp = self.session.get(f"{BASE_URL}/document/list", params=current, timeout=30)
-            resp.raise_for_status()
-            payload = resp.json()
+            scoped = dict(params)
+            if cursor:
+                scoped["pageCursor"] = cursor
+            response = self._request("get", "/document/list", params=scoped)
+            payload = response.json()
             for doc in payload.get("results", []):
                 yield doc
-            next_cursor = payload.get("nextPageCursor")
-            if not next_cursor:
+            cursor = payload.get("nextPageCursor")
+            if not cursor:
                 break
 
-    def add_url(self, url: str, *, dry_run: bool = False) -> Dict[str, Any]:
-        payload = {"url": url}
-        if dry_run:
-            print(f"DRY RUN: would POST {payload}")
-            return payload
-        resp = self.session.post(f"{BASE_URL}/document/add", json=payload, timeout=30)
-        resp.raise_for_status()
-        return resp.json()
+    def update_document(self, document_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        response = self._request("patch", f"/document/{document_id}", json=payload)
+        return response.json()
 
-    def health_check(self) -> bool:
-        resp = self.session.get(f"{BASE_URL}/auth/test", timeout=15)
-        return resp.ok
+    def delete_document(self, document_id: str) -> Dict[str, Any]:
+        response = self._request("delete", f"/document/{document_id}")
+        return response.json()
 
 
-def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Readwise Reader helper")
-    sub = parser.add_subparsers(dest="command", required=True)
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Interact with Readwise Reader API")
+    parser.add_argument("--token", help="Override READWISE_READER_TOKEN")
+    parser.add_argument("--output", choices=["json", "markdown", "plain"], default="json")
+    parser.add_argument("--dry-run", action="store_true")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    check = sub.add_parser("check", help="Verify credentials")
-    check.add_argument("--token")
+    docs = subparsers.add_parser("docs", help="Document operations")
+    docs_sub = docs.add_subparsers(dest="docs_command", required=True)
 
-    list_docs = sub.add_parser("list-documents", help="Print unread Reader documents")
-    list_docs.add_argument("--token")
-    list_docs.add_argument("--category", default="new")
-    list_docs.add_argument("--limit", type=int, default=10)
+    create = docs_sub.add_parser("create", help="Create a document")
+    create.add_argument("--url")
+    create.add_argument("--content")
+    create.add_argument("--file")
+    create.add_argument("--title")
+    create.add_argument("--summary")
+    create.add_argument("--category")
+    create.add_argument("--tags", help="Comma-separated tags")
+    create.add_argument("--labels", help="Comma-separated labels")
+    create.add_argument("--generated", action="store_true")
 
-    add = sub.add_parser("add-url", help="Save a URL into Reader")
-    add.add_argument("url")
-    add.add_argument("--token")
-    add.add_argument("--dry-run", action="store_true")
+    listing = docs_sub.add_parser("list", help="List documents")
+    listing.add_argument("--category")
+    listing.add_argument("--tag")
+    listing.add_argument("--updated-after")
+    listing.add_argument("--limit", type=int, default=50)
 
-    return parser.parse_args(list(argv) if argv is not None else None)
+    update = docs_sub.add_parser("update", help="Update metadata/state")
+    update.add_argument("document_id")
+    update.add_argument("--title")
+    update.add_argument("--summary")
+    update.add_argument("--category")
+    update.add_argument("--labels")
+    update.add_argument("--state", choices=["new", "later", "archive"])
+
+    delete = docs_sub.add_parser("delete", help="Delete (archive) document")
+    delete.add_argument("document_id")
+    delete.add_argument("--hard-delete", action="store_true")
+    delete.add_argument("--yes", action="store_true")
+
+    pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
+    pull.add_argument("--since")
+    pull.add_argument("--limit", type=int, default=50)
+
+    return parser
 
 
-def main() -> int:
-    args = parse_args()
+def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
+    payload = _load_document_body(args)
+    if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
+        raise ValueError("Provide --url, --content, or --file")
+    if args.dry_run:
+        print(json.dumps(payload, indent=2))
+        return payload
+    return client.create_document(payload)
 
-    if args.command == "check":
-        client = ReaderClient.from_env(args.token)
-        ok = client.health_check()
-        print("Auth OK" if ok else "Auth failed", file=sys.stderr)
-        return 0 if ok else 1
 
-    if args.command == "list-documents":
-        client = ReaderClient.from_env(args.token)
-        for idx, doc in enumerate(client.list_documents(category=args.category), start=1):
-            print(doc)
-            if args.limit and idx >= args.limit:
-                break
-        return 0
+def handle_list(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
+    params = {}
+    if args.category:
+        params["category"] = args.category
+    if args.tag:
+        params["tag"] = args.tag
+    if args.updated_after:
+        params["updatedAfter"] = args.updated_after
+    docs = []
+    for idx, doc in enumerate(client.list_documents(params), start=1):
+        docs.append(doc)
+        if args.limit and idx >= args.limit:
+            break
+    return docs
 
-    if args.command == "add-url":
-        client = ReaderClient.from_env(args.token)
-        result = client.add_url(args.url, dry_run=args.dry_run)
-        print(result)
-        return 0
 
-    raise ValueError("Unknown command")
+def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    for field in ("title", "summary", "category"):
+        value = getattr(args, field, None)
+        if value:
+            payload[field] = value
+    if args.labels:
+        payload["labels"] = parse_tags(args.labels)
+    if args.state:
+        payload["document_status"] = args.state
+    if not payload:
+        raise ValueError("No fields to update")
+    if args.dry_run:
+        print(json.dumps(payload, indent=2))
+        return payload
+    return client.update_document(args.document_id, payload)
+
+
+def handle_delete(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
+    if not args.yes:
+        confirmation = input(f"Delete document {args.document_id}? [y/N] ")
+        if confirmation.strip().lower() not in {"y", "yes"}:
+            print("Aborted", file=sys.stderr)
+            return {"deleted": False}
+    if args.dry_run:
+        print(json.dumps({"deleted_id": args.document_id}, indent=2))
+        return {"deleted": False}
+    result = client.delete_document(args.document_id)
+    return {"deleted": True, "response": result}
+
+
+def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
+    params = {}
+    if args.since:
+        params["updatedAfter"] = args.since
+    docs = []
+    for idx, doc in enumerate(client.list_documents(params), start=1):
+        docs.append(doc)
+        if args.limit and idx >= args.limit:
+            break
+    return docs
+
+
+def main(argv: Optional[Iterable[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    token = get_reader_token(args.token).value
+    client = ReaderClient(token)
+
+    if args.command == "docs":
+        if args.docs_command == "create":
+            result = handle_create(client, args)
+        elif args.docs_command == "list":
+            result = handle_list(client, args)
+        elif args.docs_command == "update":
+            result = handle_update(client, args)
+        elif args.docs_command == "delete":
+            result = handle_delete(client, args)
+        elif args.docs_command == "pull":
+            result = handle_pull(client, args)
+        else:
+            parser.error("Unknown docs subcommand")
+    else:
+        parser.error("Unknown command")
+
+    print(render_output(result, args.output))
+    return 0
 
 
 if __name__ == "__main__":

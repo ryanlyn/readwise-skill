@@ -5,29 +5,34 @@ description: "Automate the Readwise Reader API for ingesting documents, syncing 
 
 # Readwise Reader Skill
 
-Use this skill to script workflows against the Readwise Reader product (a superset of the Original API focused on saved articles, feeds, and PDF ingestion).
+Use this skill to script workflows against the Readwise Reader product (saved articles, feeds, PDFs, newsletters). Install dependencies via `pip install -r requirements.txt` before running the CLI.
 
 ## Quick start
 1. Generate a Reader token from https://readwise.io/reader_api and store it in `READWISE_READER_TOKEN`.
-2. Interact with the API through `scripts/reader_client.py` for pagination, filtering, and attachment uploads.
-3. Respect Reader's tighter rate limits (20 req/min) and exponential backoff guidance.
+2. Call `python scripts/reader_client.py ...` whenever possible; it handles retries, file uploads, `.generated` tagging, and `--dry-run`.
+3. Respect Reader's tighter rate limits (20 req/min). The CLI surfaces remaining budget whenever headers are present; throttle accordingly.
 
-## Common workflows
-- **Daily triage**: fetch unread documents, prioritize, and mark processed items as archived.
-- **Cross-device sync**: export annotations/highlights from Reader to other services.
-- **Automated ingestion**: upload PDFs, Markdown snippets, or RSS finds directly into Reader collections.
+## CLI commands
+- `python scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document. Accepts `--file` uploads (PDF/EPUB) and raw HTML via `--content`.
+- `... docs list --category new --tag deep-work --limit 25` – paginated document listing with filters on category/tag/update time.
+- `... docs update <id> [--state archive --labels "deep,focus" --title ...]` – patch metadata/state (`new`, `later`, `archive`). Supports `--dry-run`.
+- `... docs delete <id> [--yes --hard-delete]` – archives by default; `--hard-delete` only when API allows. Prompts unless `--yes`.
+- `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows; combine with `--output markdown` for conversational summaries.
 
-## Authentication
-Pass `Authorization: Token <value>` just like the Original API. The helper script reads from `READWISE_READER_TOKEN` and exposes `--token` to override.
+## Data guidance
+- **Generated entries**: set `--generated` when saving synthetic journal entries or agent summaries. The CLI appends `.generated` to tags (and labels, when provided) so they are searchable in Reader.
+- **Source inputs**: prefer `--url` when the content exists online. Use `--content` or `--file` for local snippets/PDFs. The CLI refuses to guess—supply at least one.
+- **Metadata**: Reader tolerates arbitrary tags/labels, so lean on them for downstream automations (e.g., `.journal`, `.deepread`). Avoid overloading `summary` with custom formats—store structured metadata in labels/tags instead.
+- **Dry runs**: `--dry-run` prints the JSON payload (and upload plan) without hitting the API. Use this before bulk imports or destructive updates.
 
 ## Scripts
-- `scripts/reader_client.py`: wraps endpoints for documents, annotations, feeds, and file uploads with built-in backoff and type validation.
-- Add specialized scripts (e.g., queue processors) when workflows become repeatable.
+- `scripts/reader_client.py`: CLI covering document create/list/update/delete/pull plus upload handling. Integrates with shared utilities from `rw_shared/`.
+- Extend with additional scripts (queue processors, RSS ingestors) by importing the `ReaderClient` and helpers defined here to keep authentication/retry behavior consistent.
 
 ## References
 - `references/api.md`: endpoint matrix, payload notes, and example requests/responses segregated by resource.
 - Expand with playbooks (e.g., ingestion recipes) as the skill matures.
 
 ## Testing & validation
-- Run `python scripts/reader_client.py --check` to verify credentials via `/auth/test`.
-- Use the built-in dry-run switch while refining bulk actions to avoid accidental deletions.
+- Use `python -m compileall readwise-reader rw_shared` before shipping changes.
+- Smoke-test live calls (token required) with `docs create --dry-run`, `docs list --limit 5`, and `docs pull --since <yesterday>` to confirm pagination + tagging rules.
