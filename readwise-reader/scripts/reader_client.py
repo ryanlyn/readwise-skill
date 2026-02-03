@@ -62,10 +62,14 @@ class ReaderClient:
     def create_document(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if "file_path" in payload:
             file_path = Path(payload.pop("file_path"))
-            file_bytes = file_path.read_bytes()
-            upload_resp = self._request("post", "/document/upload", files={"file": (file_path.name, file_bytes)})
-            upload_json = upload_resp.json()
-            payload["source_url"] = upload_json["source_url"]
+            with file_path.open("rb") as file_handle:
+                upload_resp = self._request(
+                    "post",
+                    "/document/upload",
+                    files={"file": (file_path.name, file_handle)},
+                )
+                upload_json = upload_resp.json()
+                payload["source_url"] = upload_json["source_url"]
         response = self._request("post", "/document/add", json=payload)
         return response.json()
 
