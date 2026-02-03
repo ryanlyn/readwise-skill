@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -88,10 +87,6 @@ class ReaderClient:
         response = self._request("patch", f"/document/{document_id}", json=payload)
         return response.json()
 
-    def delete_document(self, document_id: str) -> Dict[str, Any]:
-        response = self._request("delete", f"/document/{document_id}")
-        return response.json()
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interact with Readwise Reader API")
@@ -128,10 +123,6 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--labels")
     update.add_argument("--state", choices=["new", "later", "archive"])
 
-    delete = docs_sub.add_parser("delete", help="Delete (archive) document")
-    delete.add_argument("document_id")
-    delete.add_argument("--hard-delete", action="store_true")
-    delete.add_argument("--yes", action="store_true")
 
     pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
     pull.add_argument("--since")
@@ -184,19 +175,6 @@ def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
     return client.update_document(args.document_id, payload)
 
 
-def handle_delete(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
-    if not args.yes:
-        confirmation = input(f"Delete document {args.document_id}? [y/N] ")
-        if confirmation.strip().lower() not in {"y", "yes"}:
-            print("Aborted", file=sys.stderr)
-            return {"deleted": False}
-    if args.dry_run:
-        print(json.dumps({"deleted_id": args.document_id}, indent=2))
-        return {"deleted": False}
-    result = client.delete_document(args.document_id)
-    return {"deleted": True, "response": result}
-
-
 def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
     if args.since:
@@ -222,8 +200,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             result = handle_list(client, args)
         elif args.docs_command == "update":
             result = handle_update(client, args)
-        elif args.docs_command == "delete":
-            result = handle_delete(client, args)
         elif args.docs_command == "pull":
             result = handle_pull(client, args)
         else:
