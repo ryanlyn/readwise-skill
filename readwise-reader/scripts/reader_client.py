@@ -18,8 +18,10 @@ from rw_shared import (
     request_with_backoff,
     resolve_highlight_text,
 )
+from rw_shared.http import APIRequestError
 
 BASE_URL = "https://readwise.io/api/reader"
+AUTH_URL = "https://readwise.io/api/v2/auth/"
 USER_AGENT = "readwise-reader-skill/0.1"
 
 
@@ -92,6 +94,12 @@ class ReaderClient:
         response = self._request("delete", f"/document/{document_id}")
         return response.json()
 
+    def validate_token(self) -> None:
+        response = request_with_backoff(self.session, "get", AUTH_URL)
+        if response.status_code != 204:
+            error = requests.HTTPError("Unexpected auth response", response=response)
+            raise error
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interact with Readwise Reader API")
@@ -136,6 +144,11 @@ def build_parser() -> argparse.ArgumentParser:
     pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
     pull.add_argument("--since")
     pull.add_argument("--limit", type=int, default=50)
+
+    auth = subparsers.add_parser("auth", help="Authentication helpers")
+    auth_sub = auth.add_subparsers(dest="auth_command", required=True)
+
+    auth_sub.add_parser("validate", help="Validate the configured Reader token")
 
     return parser
 
@@ -209,6 +222,24 @@ def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str
     return docs
 
 
+def handle_validate(client: ReaderClient) -> Dict[str, Any]:
+    try:
+        client.validate_token()
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code == 401:
+            message = "Token is invalid. Generate one at https://readwise.io/access_token"
+        elif status_code == 403:
+            message = "Token is unauthorized. Generate one at https://readwise.io/access_token"
+        else:
+            status = status_code if status_code is not None else "unknown"
+            message = f"Token validation failed with status {status}."
+        return {"valid": False, "status": status_code, "message": message}
+    except APIRequestError as exc:
+        return {"valid": False, "message": f"Token validation failed: {exc}"}
+    return {"valid": True, "message": "Token is valid for Readwise Reader API."}
+
+
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -228,6 +259,11 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             result = handle_pull(client, args)
         else:
             parser.error("Unknown docs subcommand")
+    elif args.command == "auth":
+        if args.auth_command == "validate":
+            result = handle_validate(client)
+        else:
+            parser.error("Unknown auth subcommand")
     else:
         parser.error("Unknown command")
 
