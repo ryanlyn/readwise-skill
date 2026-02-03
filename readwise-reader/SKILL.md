@@ -16,7 +16,6 @@ Use this skill to script workflows against the Readwise Reader product (saved ar
 - `python scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document. Accepts `--file` uploads (PDF/EPUB) and raw HTML via `--content`.
 - `... docs list --category new --tag deep-work --limit 25` – paginated document listing with filters on category/tag/update time.
 - `... docs update <id> [--state archive --labels "deep,focus" --title ...]` – patch metadata/state (`new`, `later`, `archive`). Supports `--dry-run`.
-- `... docs delete <id> [--yes --hard-delete]` – archives by default; `--hard-delete` only when API allows. Prompts unless `--yes`.
 - `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows; combine with `--output markdown` for conversational summaries.
 
 ## Data guidance
@@ -26,7 +25,7 @@ Use this skill to script workflows against the Readwise Reader product (saved ar
 - **Dry runs**: `--dry-run` prints the JSON payload (and upload plan) without hitting the API. Use this before bulk imports or destructive updates.
 
 ## Scripts
-- `scripts/reader_client.py`: CLI covering document create/list/update/delete/pull plus upload handling. Integrates with shared utilities from `rw_shared/`.
+- `scripts/reader_client.py`: CLI covering document create/list/update/pull plus upload handling. Integrates with shared utilities from `rw_shared/`.
 - Extend with additional scripts (queue processors, RSS ingestors) by importing the `ReaderClient` and helpers defined here to keep authentication/retry behavior consistent.
 
 ## References

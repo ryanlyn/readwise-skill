@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -90,10 +89,6 @@ class ReaderClient:
         response = self._request("patch", f"/document/{document_id}", json=payload)
         return response.json()
 
-    def delete_document(self, document_id: str) -> Dict[str, Any]:
-        response = self._request("delete", f"/document/{document_id}")
-        return response.json()
-
     def validate_token(self) -> None:
         response = request_with_backoff(self.session, "get", AUTH_URL)
         if response.status_code != 204:
@@ -123,8 +118,10 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--generated", action="store_true")
 
     listing = docs_sub.add_parser("list", help="List documents")
+    listing.add_argument("--id", dest="document_id")
     listing.add_argument("--category")
     listing.add_argument("--tag")
+    listing.add_argument("--location")
     listing.add_argument("--updated-after")
     listing.add_argument("--limit", type=int, default=50)
 
@@ -136,12 +133,9 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--labels")
     update.add_argument("--state", choices=["new", "later", "archive"])
 
-    delete = docs_sub.add_parser("delete", help="Delete (archive) document")
-    delete.add_argument("document_id")
-    delete.add_argument("--hard-delete", action="store_true")
-    delete.add_argument("--yes", action="store_true")
 
     pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
+    pull.add_argument("--location")
     pull.add_argument("--since")
     pull.add_argument("--limit", type=int, default=50)
 
@@ -155,7 +149,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
     payload = _load_document_body(args)
-    if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
+    if (
+        not payload.get("url")
+        and not payload.get("html")
+        and not payload.get("source_url")
+        and not payload.get("file_path")
+    ):
         raise ValueError("Provide --url, --content, or --file")
     if args.dry_run:
         print(json.dumps(payload, indent=2))
@@ -165,10 +164,14 @@ def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
 
 def handle_list(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
+    if args.document_id:
+        params["id"] = args.document_id
     if args.category:
         params["category"] = args.category
     if args.tag:
         params["tag"] = args.tag
+    if args.location:
+        params["location"] = args.location
     if args.updated_after:
         params["updatedAfter"] = args.updated_after
     docs = []
@@ -197,21 +200,10 @@ def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
     return client.update_document(args.document_id, payload)
 
 
-def handle_delete(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
-    if not args.yes:
-        confirmation = input(f"Delete document {args.document_id}? [y/N] ")
-        if confirmation.strip().lower() not in {"y", "yes"}:
-            print("Aborted", file=sys.stderr)
-            return {"deleted": False}
-    if args.dry_run:
-        print(json.dumps({"deleted_id": args.document_id}, indent=2))
-        return {"deleted": False}
-    result = client.delete_document(args.document_id)
-    return {"deleted": True, "response": result}
-
-
 def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
+    if args.location:
+        params["location"] = args.location
     if args.since:
         params["updatedAfter"] = args.since
     docs = []
@@ -253,8 +245,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             result = handle_list(client, args)
         elif args.docs_command == "update":
             result = handle_update(client, args)
-        elif args.docs_command == "delete":
-            result = handle_delete(client, args)
         elif args.docs_command == "pull":
             result = handle_pull(client, args)
         else:

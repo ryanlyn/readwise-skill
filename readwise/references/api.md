@@ -7,7 +7,7 @@
 - `GET /highlights/` — supports `page_size`, `updated_after`, `book_id`, `category`.
 - `GET /books/` — provides metadata for deduping or enrichment.
 - `POST /highlights/` — create custom highlights; pass `text`, `title`, `location_url`, `source_url`.
-- `PATCH /highlights/<id>/` — update tags, note, favorite, or delete.
+- `PATCH /highlights/<id>/` — update tags, note, or favorite.
 
 ## Pagination
 Use `nextPageCursor` tokens from responses; the helper client exposes `paginate()` to iterate safely.

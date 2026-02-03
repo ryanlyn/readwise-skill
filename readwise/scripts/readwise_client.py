@@ -13,6 +13,7 @@ from rw_shared import (
     build_location_payload,
     build_tags,
     get_readwise_token,
+    parse_iso_datetime,
     parse_tags,
     render_output,
     request_with_backoff,
@@ -69,9 +70,6 @@ class ReadwiseClient:
         response = self._request("patch", f"/highlights/{highlight_id}/", json=payload)
         return response.json()
 
-    def delete_highlight(self, highlight_id: int) -> None:
-        self._request("delete", f"/highlights/{highlight_id}/")
-
     def daily_review(self, params: Dict[str, Any]) -> Dict[str, Any]:
         response = self._request("get", "/export/", params=params)
         return response.json()
@@ -120,9 +118,6 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("highlight_id", type=int)
     _add_common_create_args(update)
 
-    delete = highlight_sub.add_parser("delete", help="Delete a highlight")
-    delete.add_argument("highlight_id", type=int)
-    delete.add_argument("--yes", action="store_true", help="Do not prompt for confirmation")
 
     highlights = subparsers.add_parser("highlights", help="List or review highlights")
     highlights_sub = highlights.add_subparsers(dest="highlights_command", required=True)
@@ -196,6 +191,13 @@ def _normalize_bulk_payload(entry: Dict[str, Any], default_generated: bool) -> D
     return payload
 
 
+def _normalize_datetime_arg(label: str, value: str) -> str:
+    try:
+        return parse_iso_datetime(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be an ISO date or datetime") from exc
+
+
 def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     payloads: List[Dict[str, Any]] = []
     if args.bulk_file:
@@ -230,19 +232,6 @@ def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) ->
     return client.update_highlight(args.highlight_id, payload)
 
 
-def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
-    if not args.yes:
-        confirmation = input(f"Delete highlight {args.highlight_id}? [y/N] ")
-        if confirmation.strip().lower() not in {"y", "yes"}:
-            print("Aborted", file=sys.stderr)
-            return {"deleted": False}
-    if args.dry_run:
-        print(json.dumps({"deleted_id": args.highlight_id}, indent=2))
-        return {"deleted": False}
-    client.delete_highlight(args.highlight_id)
-    return {"deleted": True, "highlight_id": args.highlight_id}
-
-
 def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
     if args.book_id:
@@ -250,9 +239,9 @@ def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> 
     if args.tag:
         params["tag"] = args.tag
     if args.updated_after:
-        params["updatedAfter"] = args.updated_after
+        params["updatedAfter"] = _normalize_datetime_arg("--updated-after", args.updated_after)
     if args.updated_before:
-        params["updatedBefore"] = args.updated_before
+        params["updatedBefore"] = _normalize_datetime_arg("--updated-before", args.updated_before)
     if args.category:
         params["category"] = args.category
     results = []
@@ -266,9 +255,9 @@ def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> 
 def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
     params = {}
     if args.since:
-        params["updatedAfter"] = args.since
+        params["updatedAfter"] = _normalize_datetime_arg("--since", args.since)
     if args.until:
-        params["updatedBefore"] = args.until
+        params["updatedBefore"] = _normalize_datetime_arg("--until", args.until)
     params["limit"] = args.limit
     return client.daily_review(params)
 
@@ -302,8 +291,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             result = handle_highlight_show(client, args)
         elif args.highlight_command == "update":
             result = handle_highlight_update(client, args)
-        elif args.highlight_command == "delete":
-            result = handle_highlight_delete(client, args)
         else:
             parser.error("Unknown highlight subcommand")
     elif args.command == "highlights":
