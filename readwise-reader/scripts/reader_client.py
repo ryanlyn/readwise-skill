@@ -19,7 +19,7 @@ from rw_shared import (
     resolve_highlight_text,
 )
 
-BASE_URL = "https://readwise.io/api/reader"
+BASE_URL = "https://readwise.io/api/v3"
 USER_AGENT = "readwise-reader-skill/0.1"
 
 
@@ -62,11 +62,15 @@ class ReaderClient:
     def create_document(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if "file_path" in payload:
             file_path = Path(payload.pop("file_path"))
-            file_bytes = file_path.read_bytes()
-            upload_resp = self._request("post", "/document/upload", files={"file": (file_path.name, file_bytes)})
-            upload_json = upload_resp.json()
-            payload["source_url"] = upload_json["source_url"]
-        response = self._request("post", "/document/add", json=payload)
+            with file_path.open("rb") as file_handle:
+                response = self._request(
+                    "post",
+                    "/save/",
+                    data=payload,
+                    files={"file": (file_path.name, file_handle)},
+                )
+                return response.json()
+        response = self._request("post", "/save/", json=payload)
         return response.json()
 
     def list_documents(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -76,7 +80,7 @@ class ReaderClient:
             scoped = dict(params)
             if cursor:
                 scoped["pageCursor"] = cursor
-            response = self._request("get", "/document/list", params=scoped)
+            response = self._request("get", "/list/", params=scoped)
             payload = response.json()
             for doc in payload.get("results", []):
                 yield doc
@@ -85,12 +89,12 @@ class ReaderClient:
                 break
 
     def update_document(self, document_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        response = self._request("patch", f"/document/{document_id}", json=payload)
+        response = self._request("patch", f"/update/{document_id}/", json=payload)
         return response.json()
 
     def delete_document(self, document_id: str) -> Dict[str, Any]:
-        response = self._request("delete", f"/document/{document_id}")
-        return response.json()
+        response = self._request("delete", f"/delete/{document_id}/")
+        return {"status_code": response.status_code}
 
 
 def build_parser() -> argparse.ArgumentParser:
