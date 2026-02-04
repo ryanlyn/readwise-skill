@@ -28,12 +28,15 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 
 ## Disambiguating book matches
 
-`books --title` performs a case-insensitive substring match and may return multiple results. When multiple books match, pick the correct one by checking `author`, `category`, and `num_highlights` in the output.
+`books --title` performs a case-insensitive substring match and often returns multiple books with the same title. Readwise creates separate book entries per source (Kindle, API, supplemental, etc.), so duplicates are common. When multiple results come back, review them all and use judgement to determine whether they are duplicates of the same work or entirely separate books:
+
+- **Duplicates** (same author, different sources): Readwise creates one entry per import source. A Kindle book, an API-created entry, and a supplemental entry for the same work will all share a title/author. Among duplicates, the entry with the most `num_highlights` is usually the primary one. `category=supplementals` entries are Readwise-generated companions, not user-created.
+- **Distinct books**: Different authors or categories mean genuinely different works. Treat these as separate and ask the user which one they mean if the intent is ambiguous.
 
 ## Listing highlights for a book by name
 
 1. Find the book ID: `... books --title "book name"`
-2. If multiple results, identify the correct book by author/category/num_highlights.
+2. If multiple results, review all entries to determine which are duplicates vs distinct books. For duplicates, query the entry with the most highlights. For distinct books, clarify with the user.
 3. List its highlights: `... highlights list --book-id <id>`
 
 ## Adding a highlight to an existing book
