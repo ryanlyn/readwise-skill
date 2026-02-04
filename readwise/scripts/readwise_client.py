@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -21,12 +22,13 @@ from rw_shared import (
 )
 from rw_shared.utils import load_bulk_payloads
 
-BASE_URL = "https://readwise.io/api/v2"
+DEFAULT_BASE_URL = "https://readwise.io/api/v2"
 USER_AGENT = "readwise-skill-cli/0.1"
 
 
 class ReadwiseClient:
-    def __init__(self, token: str):
+    def __init__(self, token: str, *, base_url: Optional[str] = None):
+        self.base_url = (base_url or os.getenv("READWISE_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -37,7 +39,7 @@ class ReadwiseClient:
         )
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
-        url = f"{BASE_URL}{path}"
+        url = f"{self.base_url}{path}"
         return request_with_backoff(self.session, method, url, **kwargs)
 
     def paginate(self, path: str, params: Optional[Dict[str, Any]] = None) -> Iterable[Dict[str, Any]]:
@@ -56,8 +58,12 @@ class ReadwiseClient:
                 break
 
     def create_highlight(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        response = self._request("post", "/highlights/", json=payload)
-        return response.json()
+        response = self._request("post", "/highlights/", json={"highlights": [payload]})
+        data = response.json()
+        highlights = data.get("highlights")
+        if isinstance(highlights, list) and len(highlights) == 1:
+            return highlights[0]
+        return data
 
     def list_highlights(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
         return self.paginate("/highlights/", params)
@@ -69,6 +75,9 @@ class ReadwiseClient:
     def update_highlight(self, highlight_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
         response = self._request("patch", f"/highlights/{highlight_id}/", json=payload)
         return response.json()
+
+    def delete_highlight(self, highlight_id: int) -> None:
+        self._request("delete", f"/highlights/{highlight_id}/")
 
     def daily_review(self, params: Dict[str, Any]) -> Dict[str, Any]:
         response = self._request("get", "/export/", params=params)
@@ -117,6 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
     update = highlight_sub.add_parser("update", help="Patch highlight fields")
     update.add_argument("highlight_id", type=int)
     _add_common_create_args(update)
+
+    delete = highlight_sub.add_parser("delete", help="Delete a highlight")
+    delete.add_argument("highlight_id", type=int)
+    delete.add_argument("--yes", action="store_true", help="Do not prompt for confirmation")
 
 
     highlights = subparsers.add_parser("highlights", help="List or review highlights")
@@ -232,6 +245,19 @@ def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) ->
     return client.update_highlight(args.highlight_id, payload)
 
 
+def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
+    if not args.yes:
+        confirmation = input(f"Delete highlight {args.highlight_id}? [y/N] ")
+        if confirmation.strip().lower() not in {"y", "yes"}:
+            print("Aborted", file=sys.stderr)
+            return {"deleted": False}
+    if args.dry_run:
+        print(json.dumps({"deleted_id": args.highlight_id}, indent=2))
+        return {"deleted": False}
+    client.delete_highlight(args.highlight_id)
+    return {"deleted": True, "highlight_id": args.highlight_id}
+
+
 def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
     if args.book_id:
@@ -291,6 +317,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             result = handle_highlight_show(client, args)
         elif args.highlight_command == "update":
             result = handle_highlight_update(client, args)
+        elif args.highlight_command == "delete":
+            result = handle_highlight_delete(client, args)
         else:
             parser.error("Unknown highlight subcommand")
     elif args.command == "highlights":

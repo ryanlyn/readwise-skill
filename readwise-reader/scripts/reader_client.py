@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
+import os
+import sys
 from typing import Any, Dict, Iterable, List, Optional
 
 import requests
@@ -15,11 +16,10 @@ from rw_shared import (
     parse_tags,
     render_output,
     request_with_backoff,
-    resolve_highlight_text,
 )
 from rw_shared.http import APIRequestError
 
-BASE_URL = "https://readwise.io/api/reader"
+DEFAULT_BASE_URL = "https://readwise.io/api/v3"
 AUTH_URL = "https://readwise.io/api/v2/auth/"
 USER_AGENT = "readwise-reader-skill/0.1"
 
@@ -31,7 +31,7 @@ def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
     if args.content:
         payload["html"] = args.content
     if args.file:
-        payload["file_path"] = args.file
+        raise ValueError("--file uploads are not supported by Reader API v3")
     for field in ("title", "summary"):
         value = getattr(args, field, None)
         if value:
@@ -47,7 +47,9 @@ def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 class ReaderClient:
-    def __init__(self, token: str):
+    def __init__(self, token: str, *, base_url: Optional[str] = None):
+        resolved = base_url or os.getenv("READWISE_READER_API_BASE_URL") or DEFAULT_BASE_URL
+        self.base_url = resolved.rstrip("/")
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -57,17 +59,14 @@ class ReaderClient:
         )
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
-        url = f"{BASE_URL}{path}"
+        url = f"{self.base_url}{path}"
         return request_with_backoff(self.session, method, url, **kwargs)
 
     def create_document(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        payload = dict(payload)
         if "file_path" in payload:
-            file_path = Path(payload.pop("file_path"))
-            file_bytes = file_path.read_bytes()
-            upload_resp = self._request("post", "/document/upload", files={"file": (file_path.name, file_bytes)})
-            upload_json = upload_resp.json()
-            payload["source_url"] = upload_json["source_url"]
-        response = self._request("post", "/document/add", json=payload)
+            raise ValueError("File uploads are not supported by the Reader API v3 endpoints.")
+        response = self._request("post", "/save/", json=payload)
         return response.json()
 
     def list_documents(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -77,7 +76,7 @@ class ReaderClient:
             scoped = dict(params)
             if cursor:
                 scoped["pageCursor"] = cursor
-            response = self._request("get", "/document/list", params=scoped)
+            response = self._request("get", "/list/", params=scoped)
             payload = response.json()
             for doc in payload.get("results", []):
                 yield doc
@@ -86,8 +85,12 @@ class ReaderClient:
                 break
 
     def update_document(self, document_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        response = self._request("patch", f"/document/{document_id}", json=payload)
+        response = self._request("patch", f"/update/{document_id}/", json=payload)
         return response.json()
+
+    def delete_document(self, document_id: str) -> bool:
+        self._request("delete", f"/delete/{document_id}/")
+        return True
 
     def validate_token(self) -> None:
         response = request_with_backoff(self.session, "get", AUTH_URL)
@@ -131,8 +134,8 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--summary")
     update.add_argument("--category")
     update.add_argument("--labels")
+    update.add_argument("--tags")
     update.add_argument("--state", choices=["new", "later", "archive"])
-
 
     pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
     pull.add_argument("--location")
@@ -141,7 +144,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     auth = subparsers.add_parser("auth", help="Authentication helpers")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
-
     auth_sub.add_parser("validate", help="Validate the configured Reader token")
 
     return parser
@@ -149,13 +151,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
     payload = _load_document_body(args)
-    if (
-        not payload.get("url")
-        and not payload.get("html")
-        and not payload.get("source_url")
-        and not payload.get("file_path")
-    ):
-        raise ValueError("Provide --url, --content, or --file")
+    if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
+        raise ValueError("Provide --url or --content")
     if args.dry_run:
         print(json.dumps(payload, indent=2))
         return payload
@@ -190,8 +187,10 @@ def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
             payload[field] = value
     if args.labels:
         payload["labels"] = parse_tags(args.labels)
+    if args.tags:
+        payload["tags"] = parse_tags(args.tags)
     if args.state:
-        payload["document_status"] = args.state
+        payload["location"] = args.state
     if not payload:
         raise ValueError("No fields to update")
     if args.dry_run:

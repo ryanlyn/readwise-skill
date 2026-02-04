@@ -1,14 +1,14 @@
 # Readwise Reader API Notes
 
 ## Base URL
-`https://readwise.io/api/reader`
+`https://readwise.io/api/v3`
 
 ## Resources
-- `GET /document/list` — filter by `category` (`new`, `later`, `archive`), `doc_type`, `updated_after`.
-- `POST /document/add` — ingest via URL or uploaded file.
-- `POST /document/upload` — multipart PDF/EPUB upload; returns `source_url` used in `/document/add`.
-- `PATCH /document/<id>` — update metadata (`labels`, `state`).
-- `GET /annotations` — returns highlights created inside Reader apps.
+- `POST /save/` — ingest via URL or HTML snippet.
+- `GET /list/` — filter by `category`, `location`, `tag`, `updatedAfter`, `id`.
+- `PATCH /update/<id>/` — update title/summary/category/location/tags/notes.
+- `DELETE /delete/<id>/` — hard-delete/archive document.
+- `GET /tags/` — list available document tags.
 
 ## Pagination
 Reader uses `nextPageCursor` and `document_ids`. The helper client normalizes to Python generators.

@@ -78,6 +78,13 @@ class Store:
 STORE = Store.from_fixtures()
 
 
+def reset_store() -> None:
+    """Reload fixtures so tests can run with a clean in-memory database."""
+
+    global STORE
+    STORE = Store.from_fixtures()
+
+
 @app.route("/api/v2/auth/", methods=["GET"])
 def readwise_auth() -> Any:
     auth_error = require_auth()
