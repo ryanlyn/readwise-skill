@@ -1,0 +1,15 @@
+{
+  "name": "readwise-skill",
+  "description": "Claude Code plugins for Readwise workflows",
+  "owner": {
+    "name": "ryanlyn"
+  },
+  "plugins": [
+    {
+      "name": "readwise",
+      "source": "./plugins/readwise",
+      "description": "Interact with Readwise Original and Reader APIs for syncing highlights, managing documents, and automating reading workflows.",
+      "version": "0.1.0"
+    }
+  ]
+}

@@ -2,23 +2,14 @@
   "permissions": {
     "allow": [
       "mcp__filesystem__directory_tree",
-      "Bash(pip install:*)",
-      "Bash(/Users/ryan/dev/readwise-skill/.venv/bin/pip install:*)",
-      "Bash(/Users/ryan/dev/readwise-skill/.venv/bin/pytest /Users/ryan/dev/readwise-skill/tests/ -v)",
       "mcp__filesystem__read_multiple_files",
-      "Bash(source .venv/bin/activate)",
-      "Bash(env)",
-      "Bash(source:*)",
-      "Bash(/Users/ryan/dev/readwise-skill/.venv/bin/python -m pytest:*)",
-      "Bash(tree:*)",
       "mcp__plugin_context7_context7__resolve-library-id",
       "mcp__plugin_context7_context7__query-docs",
-      "Bash(.venv/bin/python:*)",
-      "Bash(pip:*)",
-      "Bash(pip3 install:*)",
-      "Bash(for plugin in asana context7 firebase github gitlab greptile laravel-boost linear playwright serena slack stripe supabase)",
-      "Bash(do echo \"=== $plugin ===\")",
-      "Bash(done)"
+      "Bash(uv:*)",
+      "Bash(tree:*)",
+      "Bash(readlink:*)",
+      "Bash(env)",
+      "Bash(ln:*)"
     ]
   }
 }
