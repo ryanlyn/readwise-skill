@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from pydantic import BaseModel
@@ -20,6 +20,10 @@ def _to_plain(data: Any) -> Any:
     return data
 
 
+def _is_displayable(value: Any) -> bool:
+    return value is not None and value not in ("", [], {})
+
+
 def _coerce_mapping(item: Any) -> Mapping[str, Any]:
     if isinstance(item, BaseModel):
         return item.model_dump()
@@ -32,17 +36,58 @@ def _coerce_mapping(item: Any) -> Mapping[str, Any]:
     return {"value": item}
 
 
+def _format_tags(tags: Any) -> str:
+    if not tags:
+        return ""
+    if isinstance(tags, dict):
+        return ", ".join(tags.keys())
+    if isinstance(tags, list):
+        names = [t.get("name", str(t)) if isinstance(t, dict) else str(t) for t in tags]
+        return ", ".join(names)
+    return str(tags)
+
+
+def render_highlights(highlights: Any) -> str:
+    """Render highlights in a reading-optimized format.
+
+    Blockquoted text with note/tags shown only when non-empty.
+    """
+    if not isinstance(highlights, list) or not highlights:
+        return _render_markdown(highlights)
+
+    blocks = []
+    for h in highlights:
+        if not isinstance(h, dict):
+            blocks.append(str(h))
+            continue
+
+        text = h.get("text", "")
+        lines = [f"> {text}"]
+
+        note = h.get("note")
+        if note:
+            lines.append(f"  Note: {note}")
+
+        tag_str = _format_tags(h.get("tags"))
+        if tag_str:
+            lines.append(f"  Tags: {tag_str}")
+
+        blocks.append("\n".join(lines))
+
+    return "\n\n".join(blocks)
+
+
 def _render_markdown(data: Any) -> str:
     if isinstance(data, str):
         return data
     if isinstance(data, Mapping):
-        rows = [f"- **{key}**: {value}" for key, value in data.items()]
+        rows = [f"- **{key}**: {value}" for key, value in data.items() if _is_displayable(value)]
         return "\n".join(rows)
     if isinstance(data, Iterable):
         lines = []
         for item in data:
             mapping = _coerce_mapping(item)
-            summary = ", ".join(f"{k}={v}" for k, v in mapping.items())
+            summary = ", ".join(f"{k}={v}" for k, v in mapping.items() if _is_displayable(v))
             lines.append(f"- {summary}")
         return "\n".join(lines)
     return str(data)
@@ -76,7 +121,14 @@ def render_output(data: Any, fmt: str) -> str:
     return _render_plain(data)
 
 
-def print_result(result: Any, *, entity: str, raw: bool, dry_run: bool) -> None:
+def print_result(
+    result: Any,
+    *,
+    entity: str,
+    raw: bool,
+    dry_run: bool,
+    renderer: Callable[[Any], str] | None = None,
+) -> None:
     """Format and print CLI output, applying field selection when appropriate."""
     result = _to_plain(result)
     if raw:
@@ -86,4 +138,7 @@ def print_result(result: Any, *, entity: str, raw: bool, dry_run: bool) -> None:
         fields = DISPLAY_FIELDS.get(entity)
         if fields:
             result = select_fields(result, fields)
+        if renderer:
+            print(renderer(result))
+            return
     print(render_output(result, "markdown"))

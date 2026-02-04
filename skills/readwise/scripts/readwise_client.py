@@ -28,6 +28,7 @@ from readwise_common import (
     parse_iso_datetime,
     parse_tags,
     print_result,
+    render_highlights,
     request_with_backoff,
     resolve_highlight_text,
 )
@@ -387,7 +388,10 @@ def highlights_list(
         results.append(highlight)
         if limit and idx >= limit:
             break
-    print_result(results, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(
+        results, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"],
+        renderer=render_highlights,
+    )
 
 
 @highlights_app.command("review")

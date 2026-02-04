@@ -2,7 +2,7 @@
 
 from .auth import get_readwise_token, get_reader_token
 from .http import request_with_backoff, RateLimitInfo
-from .formatting import print_result, render_output, select_fields
+from .formatting import print_result, render_highlights, render_output, select_fields
 from .models import (
     Book,
     BookListParams,
@@ -38,6 +38,7 @@ __all__ = [
     "request_with_backoff",
     "RateLimitInfo",
     "print_result",
+    "render_highlights",
     "render_output",
     "select_fields",
     "DISPLAY_FIELDS",

@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from readwise_common.formatting import select_fields
+from readwise_common.formatting import render_highlights, select_fields
 from readwise_common.models import (
     BookListParams,
     DailyReviewParams,
@@ -305,3 +305,46 @@ def test_dry_run_skips_field_filtering(capsys: pytest.CaptureFixture[str]) -> No
     captured = capsys.readouterr()
     assert "dry_run" in captured.out
     assert "request_payload" in captured.out
+
+
+class TestRenderHighlights:
+    def test_blockquoted_text(self) -> None:
+        highlights = [{"text": "Some quote", "note": "", "tags": []}]
+        result = render_highlights(highlights)
+        assert result == "> Some quote"
+
+    def test_note_shown_when_present(self) -> None:
+        highlights = [{"text": "Quote", "note": "My thought"}]
+        result = render_highlights(highlights)
+        assert "> Quote" in result
+        assert "Note: My thought" in result
+
+    def test_tags_shown_when_present(self) -> None:
+        highlights = [{"text": "Quote", "tags": [{"name": "focus"}, {"name": "deep"}]}]
+        result = render_highlights(highlights)
+        assert "Tags: focus, deep" in result
+
+    def test_empty_note_and_tags_omitted(self) -> None:
+        highlights = [{"text": "Clean", "note": "", "tags": []}]
+        result = render_highlights(highlights)
+        assert "Note" not in result
+        assert "Tags" not in result
+
+    def test_multiple_highlights_separated(self) -> None:
+        highlights = [{"text": "First"}, {"text": "Second"}]
+        result = render_highlights(highlights)
+        assert "> First\n\n> Second" == result
+
+
+def test_highlights_list_uses_blockquote_format(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["highlights", "list", "--book-id", "1337", "--limit", "2"])
+    captured = capsys.readouterr()
+    assert captured.out.startswith(">")
+    assert "id=" not in captured.out
+
+
+def test_falsy_fields_omitted_in_markdown(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["book", "1337"])
+    captured = capsys.readouterr()
+    assert "Meditations" in captured.out
+    assert "document_note" not in captured.out
