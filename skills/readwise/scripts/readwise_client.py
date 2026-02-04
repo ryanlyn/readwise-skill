@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from typing import Any, Dict, Iterable, List, Optional
@@ -27,8 +26,9 @@ USER_AGENT = "readwise-skill-cli/0.1"
 
 
 class ReadwiseClient:
-    def __init__(self, token: str, *, base_url: Optional[str] = None):
+    def __init__(self, token: str, *, base_url: Optional[str] = None, dry_run: bool = False):
         self.base_url = (base_url or os.getenv("READWISE_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+        self.dry_run = dry_run
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -65,6 +65,8 @@ class ReadwiseClient:
                 break
 
     def create_highlight(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self.dry_run:
+            return {"dry_run": True, "request_payload": payload}
         response = self._request("post", "/highlights/", json={"highlights": [payload]})
         data = response.json()
         # The real API returns a list of books with modified_highlights IDs
@@ -88,11 +90,16 @@ class ReadwiseClient:
         return response.json()
 
     def update_highlight(self, highlight_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self.dry_run:
+            return {"dry_run": True, "highlight_id": highlight_id, "request_payload": payload}
         response = self._request("patch", f"/highlights/{highlight_id}/", json=payload)
         return response.json()
 
-    def delete_highlight(self, highlight_id: int) -> None:
+    def delete_highlight(self, highlight_id: int) -> Dict[str, Any]:
+        if self.dry_run:
+            return {"dry_run": True, "highlight_id": highlight_id, "action": "delete"}
         self._request("delete", f"/highlights/{highlight_id}/")
+        return {"deleted": True, "highlight_id": highlight_id}
 
     def daily_review(self, params: Dict[str, Any]) -> Dict[str, Any]:
         response = self._request("get", "/export/", params=params)
@@ -257,11 +264,7 @@ def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) ->
     for p in payloads:
         _resolve_book_id(client, p)
 
-    if args.dry_run:
-        return [{"dry_run": True, "request_payload": p} for p in payloads]
-
-    results = [client.create_highlight(payload) for payload in payloads]
-    return results
+    return [client.create_highlight(p) for p in payloads]
 
 
 def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
@@ -270,8 +273,6 @@ def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> D
 
 def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
     payload = _build_highlight_payload(args, require_text=False)
-    if args.dry_run:
-        return {"dry_run": True, "highlight_id": args.highlight_id, "request_payload": payload}
     if not payload:
         raise ValueError("No fields to update")
     return client.update_highlight(args.highlight_id, payload)
@@ -283,10 +284,7 @@ def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) ->
         if confirmation.strip().lower() not in {"y", "yes"}:
             print("Aborted", file=sys.stderr)
             return {"deleted": False}
-    if args.dry_run:
-        return {"dry_run": True, "deleted_id": args.highlight_id}
-    client.delete_highlight(args.highlight_id)
-    return {"deleted": True, "highlight_id": args.highlight_id}
+    return client.delete_highlight(args.highlight_id)
 
 
 def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
@@ -343,7 +341,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     token = get_readwise_token(args.token).value
-    client = ReadwiseClient(token)
+    client = ReadwiseClient(token, dry_run=args.dry_run)
 
     if args.command == "highlight":
         if args.highlight_command == "create":

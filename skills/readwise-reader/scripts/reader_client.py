@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -47,11 +46,12 @@ def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 class ReaderClient:
-    def __init__(self, token: str, *, base_url: Optional[str] = None, auth_url: Optional[str] = None):
+    def __init__(self, token: str, *, base_url: Optional[str] = None, auth_url: Optional[str] = None, dry_run: bool = False):
         resolved = base_url or os.getenv("READWISE_READER_API_BASE_URL") or DEFAULT_BASE_URL
         self.base_url = resolved.rstrip("/")
         resolved_auth = auth_url or os.getenv("READWISE_READER_AUTH_URL") or AUTH_URL
         self.auth_url = resolved_auth
+        self.dry_run = dry_run
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -68,6 +68,8 @@ class ReaderClient:
         payload = dict(payload)
         if "file_path" in payload:
             raise ValueError("File uploads are not supported by the Reader API v3 endpoints.")
+        if self.dry_run:
+            return {"dry_run": True, "request_payload": payload}
         response = self._request("post", "/save/", json=payload)
         return response.json()
 
@@ -87,12 +89,16 @@ class ReaderClient:
                 break
 
     def update_document(self, document_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self.dry_run:
+            return {"dry_run": True, "document_id": document_id, "request_payload": payload}
         response = self._request("patch", f"/update/{document_id}/", json=payload)
         return response.json()
 
-    def delete_document(self, document_id: str) -> bool:
+    def delete_document(self, document_id: str) -> Dict[str, Any]:
+        if self.dry_run:
+            return {"dry_run": True, "document_id": document_id, "action": "delete"}
         self._request("delete", f"/delete/{document_id}/")
-        return True
+        return {"deleted": True, "document_id": document_id}
 
     def validate_token(self) -> None:
         response = request_with_backoff(self.session, "get", self.auth_url)
@@ -155,8 +161,6 @@ def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
     payload = _load_document_body(args)
     if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
         raise ValueError("Provide --url or --content")
-    if args.dry_run:
-        return payload
     return client.create_document(payload)
 
 
@@ -194,8 +198,6 @@ def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
         payload["location"] = args.state
     if not payload:
         raise ValueError("No fields to update")
-    if args.dry_run:
-        return payload
     return client.update_document(args.document_id, payload)
 
 
@@ -235,7 +237,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     token = get_reader_token(args.token).value
-    client = ReaderClient(token)
+    client = ReaderClient(token, dry_run=args.dry_run)
 
     if args.command == "docs":
         if args.docs_command == "create":
