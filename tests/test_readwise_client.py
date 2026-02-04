@@ -6,7 +6,7 @@ from typing import Dict, Iterable, List
 
 import pytest
 
-from readwise.scripts.readwise_client import ReadwiseClient
+from skills.readwise.scripts.readwise_client import ReadwiseClient
 
 
 @pytest.fixture

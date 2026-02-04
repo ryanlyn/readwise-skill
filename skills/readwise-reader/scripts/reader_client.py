@@ -9,14 +9,14 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import requests
 
-from rw_shared import (
+from readwise_common import (
     build_tags,
     get_reader_token,
     parse_tags,
     render_output,
     request_with_backoff,
 )
-from rw_shared.http import APIRequestError
+from readwise_common.http import APIRequestError
 
 DEFAULT_BASE_URL = "https://readwise.io/api/v3"
 AUTH_URL = "https://readwise.io/api/v2/auth/"

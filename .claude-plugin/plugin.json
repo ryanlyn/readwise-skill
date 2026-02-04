@@ -1,0 +1,5 @@
+{
+  "name": "readwise-skill",
+  "description": "Interact with Readwise Original and Reader APIs for syncing highlights, managing documents, and automating reading workflows.",
+  "version": "0.1.0"
+}

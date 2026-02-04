@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from stub_server.app import app, reset_store  # noqa: E402
+from tests.stub_server.app import app, reset_store  # noqa: E402
 
 
 class StubServerThread(threading.Thread):

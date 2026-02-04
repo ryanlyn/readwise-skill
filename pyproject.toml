@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["readwise_common*"]
+
+[project]
+name = "readwise-skill"
+version = "0.1.0"
+description = "Claude Code plugin for Readwise Original and Reader APIs"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flask>=2.3.0",
+    "pytest>=8.0.0",
+]

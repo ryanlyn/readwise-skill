@@ -10,7 +10,7 @@ import pytest
 
 def _load_reader_client_class():
     module_name = "readwise_reader.scripts.reader_client"
-    module_path = Path(__file__).resolve().parents[1] / "readwise-reader" / "scripts" / "reader_client.py"
+    module_path = Path(__file__).resolve().parents[1] / "skills" / "readwise-reader" / "scripts" / "reader_client.py"
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to load reader_client module")

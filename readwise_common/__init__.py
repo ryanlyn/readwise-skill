@@ -1,4 +1,4 @@
-"""Shared helpers for Readwise-related skills."""
+"""Shared helpers for Readwise skills."""
 
 from .auth import get_readwise_token, get_reader_token
 from .http import request_with_backoff, RateLimitInfo

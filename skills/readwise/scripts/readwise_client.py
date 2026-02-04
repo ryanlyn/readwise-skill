@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import requests
 
-from rw_shared import (
+from readwise_common import (
     build_location_payload,
     build_tags,
     get_readwise_token,
@@ -20,7 +20,7 @@ from rw_shared import (
     request_with_backoff,
     resolve_highlight_text,
 )
-from rw_shared.utils import load_bulk_payloads
+from readwise_common.utils import load_bulk_payloads
 
 DEFAULT_BASE_URL = "https://readwise.io/api/v2"
 USER_AGENT = "readwise-skill-cli/0.1"

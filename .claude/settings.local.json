@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__filesystem__directory_tree",
+      "Bash(pip install:*)",
+      "Bash(/Users/ryan/dev/readwise-skill/.venv/bin/pip install:*)",
+      "Bash(/Users/ryan/dev/readwise-skill/.venv/bin/pytest /Users/ryan/dev/readwise-skill/tests/ -v)"
+    ]
+  }
+}

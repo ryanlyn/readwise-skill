@@ -1,19 +1,20 @@
 ---
 name: readwise
 description: "Interact with the Readwise Original API for syncing highlights, exporting notes, and managing books/authors. Use whenever tasks require the legacy Readwise endpoints (not the Reader app)."
+allowed-tools: Bash(python *), Bash(pip install *)
 ---
 
 # Readwise Original Skill
 
-Use this skill to automate work with the Readwise "Original" API that powers highlight exports and metadata management. Run `pip install -r requirements.txt` once so the bundled CLI scripts have `requests` available.
+Use this skill to automate work with the Readwise "Original" API that powers highlight exports and metadata management. Run `pip install ${CLAUDE_PLUGIN_ROOT}` once so the bundled CLI scripts have `requests` available.
 
 ## Quick start
 1. Obtain a personal Readwise token and store it in the `READWISE_TOKEN` secret.
-2. Use `python scripts/readwise_client.py ...` instead of calling the API directly; it handles retries, pagination, rate-limit surfacing, `--dry-run`, and tagging rules.
+2. Use `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py ...` instead of calling the API directly; it handles retries, pagination, rate-limit surfacing, `--dry-run`, and tagging rules.
 3. Keep requests below the documented rate limit (currently 60 req/min). Batch operations and pause between pages when processing large libraries.
 
 ## CLI commands
-- `python scripts/readwise_client.py highlight create --text ... [--generated] [--tags t1,t2] [--dry-run]`  
+- `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py highlight create --text ... [--generated] [--tags t1,t2] [--dry-run]`
   Creates a highlight or batch (`--bulk-file ndjson`). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
 - `... highlight update <id> [--title --note --tags --generated]` – partial updates, respects `--dry-run`.
 - `... highlight show <id>` – fetch highlight details.
@@ -28,14 +29,14 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - **Dry runs**: add `--dry-run` to print the exact JSON payload without calling the API. Useful when iterating on agent prompts.
 
 ## Scripts
-- `scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.
-- Shared helpers live in `rw_shared/` (auth, HTTP retries, tag/location utilities); import from there when extending functionality to keep behavior consistent.
+- `${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.
+- Shared helpers live in `${CLAUDE_PLUGIN_ROOT}/readwise_common/` (auth, HTTP retries, tag/location utilities); import from there when extending functionality to keep behavior consistent.
 
 ## References
-- `references/api.md`: mirrors endpoints, parameters, and payload schemas that evolve faster than this SKILL.
+- `${CLAUDE_PLUGIN_ROOT}/skills/readwise/references/api.md`: mirrors endpoints, parameters, and payload schemas that evolve faster than this SKILL.
 - Add more references (e.g., sample responses) as flows become concrete.
 
 ## Testing & validation
 - Use the dry-run flag in the client to print payloads instead of sending them when iterating on workflows.
-- Run `python -m compileall readwise rw_shared` before distributing changes to catch syntax issues.
+- Run `python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise ${CLAUDE_PLUGIN_ROOT}/rw_shared` before distributing changes to catch syntax issues.
 - For live smoke tests, set `READWISE_TOKEN` and exercise `highlight create --dry-run`, `highlight list`, and `highlights review` against a small limit to verify pagination + rate-limit logging.
