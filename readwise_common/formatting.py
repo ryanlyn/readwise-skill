@@ -6,10 +6,23 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from pydantic import BaseModel
+
 from readwise_common.schemas import DISPLAY_FIELDS
 
 
+def _to_plain(data: Any) -> Any:
+    """Convert Pydantic models (and lists of them) to plain dicts."""
+    if isinstance(data, BaseModel):
+        return data.model_dump()
+    if isinstance(data, list):
+        return [item.model_dump() if isinstance(item, BaseModel) else item for item in data]
+    return data
+
+
 def _coerce_mapping(item: Any) -> Mapping[str, Any]:
+    if isinstance(item, BaseModel):
+        return item.model_dump()
     if isinstance(item, Mapping):
         return item
     if hasattr(item, "_asdict"):
@@ -54,6 +67,7 @@ def select_fields(data: Any, fields: list[str]) -> Any:
 
 
 def render_output(data: Any, fmt: str) -> str:
+    data = _to_plain(data)
     fmt = fmt.lower()
     if fmt == "json":
         return json.dumps(data, ensure_ascii=False, indent=2)
@@ -64,6 +78,7 @@ def render_output(data: Any, fmt: str) -> str:
 
 def print_result(result: Any, *, entity: str, raw: bool, dry_run: bool) -> None:
     """Format and print CLI output, applying field selection when appropriate."""
+    result = _to_plain(result)
     if raw:
         print(render_output(result, "json"))
         return

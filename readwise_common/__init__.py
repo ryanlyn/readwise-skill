@@ -3,6 +3,25 @@
 from .auth import get_readwise_token, get_reader_token
 from .http import request_with_backoff, RateLimitInfo
 from .formatting import print_result, render_output, select_fields
+from .models import (
+    Book,
+    BookListParams,
+    DailyReviewParams,
+    DailyReviewResponse,
+    DeleteResult,
+    Document,
+    DocumentCreatePayload,
+    DocumentListParams,
+    DocumentPullParams,
+    DocumentSaveResponse,
+    DocumentUpdatePayload,
+    DryRunResult,
+    Highlight,
+    HighlightCreatePayload,
+    HighlightListParams,
+    HighlightUpdatePayload,
+    TokenValidationResult,
+)
 from .schemas import DISPLAY_FIELDS
 from .utils import (
     build_location_payload,
@@ -26,4 +45,21 @@ __all__ = [
     "parse_tags",
     "resolve_highlight_text",
     "build_location_payload",
+    "Book",
+    "BookListParams",
+    "DailyReviewParams",
+    "DailyReviewResponse",
+    "DeleteResult",
+    "Document",
+    "DocumentCreatePayload",
+    "DocumentListParams",
+    "DocumentPullParams",
+    "DocumentSaveResponse",
+    "DocumentUpdatePayload",
+    "DryRunResult",
+    "Highlight",
+    "HighlightCreatePayload",
+    "HighlightListParams",
+    "HighlightUpdatePayload",
+    "TokenValidationResult",
 ]

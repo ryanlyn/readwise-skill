@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 from collections.abc import Iterable
-from typing import Any
+from typing import Annotated, Any
 
 import requests
+import typer
 
 from readwise_common import (
+    DeleteResult,
+    Document,
+    DocumentCreatePayload,
+    DocumentListParams,
+    DocumentSaveResponse,
+    DocumentUpdatePayload,
+    DryRunResult,
+    TokenValidationResult,
     build_tags,
     get_reader_token,
     parse_iso_datetime,
@@ -22,28 +30,6 @@ from readwise_common.http import APIRequestError
 DEFAULT_BASE_URL = "https://readwise.io/api/v3"
 AUTH_URL = "https://readwise.io/api/v2/auth/"
 USER_AGENT = "readwise-reader-skill/0.1"
-
-
-def _load_document_body(args: argparse.Namespace) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
-    if args.url:
-        payload["url"] = args.url
-    if args.content:
-        payload["html"] = args.content
-    if args.file:
-        raise ValueError("--file uploads are not supported by Reader API v3")
-    for field in ("title", "summary"):
-        value = getattr(args, field, None)
-        if value:
-            payload[field] = value
-    tags = build_tags(parse_tags(getattr(args, "tags", None)), args.generated)
-    if tags:
-        payload["tags"] = tags
-    if args.category:
-        payload["category"] = args.category
-    if args.labels:
-        payload["labels"] = parse_tags(args.labels)
-    return payload
 
 
 class ReaderClient:
@@ -64,41 +50,50 @@ class ReaderClient:
         url = f"{self.base_url}{path}"
         return request_with_backoff(self.session, method, url, **kwargs)
 
-    def create_document(self, payload: dict[str, Any]) -> dict[str, Any]:
-        payload = dict(payload)
-        if "file_path" in payload:
-            raise ValueError("File uploads are not supported by the Reader API v3 endpoints.")
+    def create_document(self, payload: DocumentCreatePayload) -> DocumentSaveResponse | DryRunResult:
+        data = payload.model_dump(exclude_none=True)
         if self.dry_run:
-            return {"dry_run": True, "request_payload": payload}
-        response = self._request("post", "/save/", json=payload)
-        return response.json()
+            return DryRunResult(request_payload=data)
+        response = self._request("post", "/save/", json=data)
+        return DocumentSaveResponse.model_validate(response.json())
 
-    def list_documents(self, params: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    def list_documents(self, params: DocumentListParams) -> Iterable[Document]:
+        query: dict[str, Any] = {}
+        if params.document_id is not None:
+            query["id"] = params.document_id
+        if params.category is not None:
+            query["category"] = params.category
+        if params.tag is not None:
+            query["tag"] = params.tag
+        if params.location is not None:
+            query["location"] = params.location
+        if params.updated_after is not None:
+            query["updatedAfter"] = params.updated_after
         cursor: str | None = None
-        params = dict(params)
         while True:
-            scoped = dict(params)
+            scoped = dict(query)
             if cursor:
                 scoped["pageCursor"] = cursor
             response = self._request("get", "/list/", params=scoped)
-            payload = response.json()
-            for doc in payload.get("results", []):
-                yield doc
-            cursor = payload.get("nextPageCursor")
+            resp_data = response.json()
+            for doc in resp_data.get("results", []):
+                yield Document.model_validate(doc)
+            cursor = resp_data.get("nextPageCursor")
             if not cursor:
                 break
 
-    def update_document(self, document_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def update_document(self, document_id: str, payload: DocumentUpdatePayload) -> DocumentSaveResponse | DryRunResult:
+        data = payload.model_dump(exclude_none=True)
         if self.dry_run:
-            return {"dry_run": True, "document_id": document_id, "request_payload": payload}
-        response = self._request("patch", f"/update/{document_id}/", json=payload)
-        return response.json()
+            return DryRunResult(document_id=document_id, request_payload=data)
+        response = self._request("patch", f"/update/{document_id}/", json=data)
+        return DocumentSaveResponse.model_validate(response.json())
 
-    def delete_document(self, document_id: str) -> dict[str, Any]:
+    def delete_document(self, document_id: str) -> DeleteResult | DryRunResult:
         if self.dry_run:
-            return {"dry_run": True, "document_id": document_id, "action": "delete"}
+            return DryRunResult(document_id=document_id, action="delete")
         self._request("delete", f"/delete/{document_id}/")
-        return {"deleted": True, "document_id": document_id}
+        return DeleteResult(deleted=True, document_id=document_id)
 
     def validate_token(self) -> None:
         response = request_with_backoff(self.session, "get", self.auth_url)
@@ -107,115 +102,141 @@ class ReaderClient:
             raise error
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Interact with Readwise Reader API")
-    parser.add_argument("--token", help="Override READWISE_TOKEN")
-    parser.add_argument("--raw", action="store_true", help="Output full JSON (all fields)")
-    parser.add_argument("--dry-run", action="store_true")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+# ---------------------------------------------------------------------------
+# Typer CLI
+# ---------------------------------------------------------------------------
 
-    docs = subparsers.add_parser("docs", help="Document operations")
-    docs_sub = docs.add_subparsers(dest="docs_command", required=True)
+app = typer.Typer(help="Interact with Readwise Reader API")
+docs_app = typer.Typer(help="Document operations")
+auth_app = typer.Typer(help="Authentication helpers")
 
-    create = docs_sub.add_parser("create", help="Create a document")
-    create.add_argument("--url")
-    create.add_argument("--content")
-    create.add_argument("--file")
-    create.add_argument("--title")
-    create.add_argument("--summary")
-    create.add_argument("--category")
-    create.add_argument("--tags", help="Comma-separated tags")
-    create.add_argument("--labels", help="Comma-separated labels")
-    create.add_argument("--generated", action="store_true")
-
-    listing = docs_sub.add_parser("list", help="List documents")
-    listing.add_argument("--id", dest="document_id")
-    listing.add_argument("--category")
-    listing.add_argument("--tag")
-    listing.add_argument("--location")
-    listing.add_argument("--updated-after")
-    listing.add_argument("--limit", type=int, default=50)
-
-    update = docs_sub.add_parser("update", help="Update metadata/state")
-    update.add_argument("document_id")
-    update.add_argument("--title")
-    update.add_argument("--summary")
-    update.add_argument("--category")
-    update.add_argument("--labels")
-    update.add_argument("--tags")
-    update.add_argument("--state", choices=["new", "later", "archive"])
-
-    pull = docs_sub.add_parser("pull", help="Export documents since timestamp")
-    pull.add_argument("--location")
-    pull.add_argument("--since")
-    pull.add_argument("--limit", type=int, default=50)
-
-    auth = subparsers.add_parser("auth", help="Authentication helpers")
-    auth_sub = auth.add_subparsers(dest="auth_command", required=True)
-    auth_sub.add_parser("validate", help="Validate the configured Reader token")
-
-    return parser
+app.add_typer(docs_app, name="docs")
+app.add_typer(auth_app, name="auth")
 
 
-def handle_create(client: ReaderClient, args: argparse.Namespace) -> dict[str, Any]:
-    payload = _load_document_body(args)
-    if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
-        raise ValueError("Provide --url or --content")
-    return client.create_document(payload)
+@app.callback()
+def app_callback(
+    ctx: typer.Context,
+    token: Annotated[str | None, typer.Option(help="Override READWISE_TOKEN")] = None,
+    raw: Annotated[bool, typer.Option("--raw", help="Output full JSON (all fields)")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+) -> None:
+    resolved = get_reader_token(token)
+    ctx.ensure_object(dict)
+    ctx.obj["client"] = ReaderClient(resolved.value, dry_run=dry_run)
+    ctx.obj["raw"] = raw
+    ctx.obj["dry_run"] = dry_run
 
 
-def handle_list(client: ReaderClient, args: argparse.Namespace) -> list[dict[str, Any]]:
-    params = {}
-    if args.document_id:
-        params["id"] = args.document_id
-    if args.category:
-        params["category"] = args.category
-    if args.tag:
-        params["tag"] = args.tag
-    if args.location:
-        params["location"] = args.location
-    if args.updated_after:
-        params["updatedAfter"] = parse_iso_datetime(args.updated_after)
+@docs_app.command("create")
+def docs_create(
+    ctx: typer.Context,
+    url: Annotated[str | None, typer.Option()] = None,
+    content: Annotated[str | None, typer.Option()] = None,
+    file: Annotated[str | None, typer.Option()] = None,
+    title: Annotated[str | None, typer.Option()] = None,
+    summary: Annotated[str | None, typer.Option()] = None,
+    category: Annotated[str | None, typer.Option()] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags")] = None,
+    labels: Annotated[str | None, typer.Option(help="Comma-separated labels")] = None,
+    generated: Annotated[bool, typer.Option("--generated")] = False,
+) -> None:
+    client: ReaderClient = ctx.obj["client"]
+    if file:
+        raise typer.BadParameter("--file uploads are not supported by Reader API v3")
+    tag_list = build_tags(parse_tags(tags), generated)
+    label_list = parse_tags(labels) if labels else []
+    payload = DocumentCreatePayload(
+        url=url,
+        html=content,
+        title=title,
+        summary=summary,
+        category=category,
+        tags=tag_list,
+        labels=label_list,
+    )
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("url") and not data.get("html"):
+        raise typer.BadParameter("Provide --url or --content")
+    result = client.create_document(payload)
+    print_result(result, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+
+
+@docs_app.command("list")
+def docs_list(
+    ctx: typer.Context,
+    id: Annotated[str | None, typer.Option("--id")] = None,
+    category: Annotated[str | None, typer.Option()] = None,
+    tag: Annotated[str | None, typer.Option()] = None,
+    location: Annotated[str | None, typer.Option()] = None,
+    updated_after: Annotated[str | None, typer.Option("--updated-after")] = None,
+    limit: Annotated[int, typer.Option()] = 50,
+) -> None:
+    client: ReaderClient = ctx.obj["client"]
+    params = DocumentListParams(
+        document_id=id,
+        category=category,
+        tag=tag,
+        location=location,
+        updated_after=parse_iso_datetime(updated_after) if updated_after else None,
+    )
     docs = []
     for idx, doc in enumerate(client.list_documents(params), start=1):
         docs.append(doc)
-        if args.limit and idx >= args.limit:
+        if limit and idx >= limit:
             break
-    return docs
+    print_result(docs, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_update(client: ReaderClient, args: argparse.Namespace) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
-    for field in ("title", "summary", "category"):
-        value = getattr(args, field, None)
-        if value:
-            payload[field] = value
-    if args.labels:
-        payload["labels"] = parse_tags(args.labels)
-    if args.tags:
-        payload["tags"] = parse_tags(args.tags)
-    if args.state:
-        payload["location"] = args.state
-    if not payload:
-        raise ValueError("No fields to update")
-    return client.update_document(args.document_id, payload)
+@docs_app.command("update")
+def docs_update(
+    ctx: typer.Context,
+    document_id: Annotated[str, typer.Argument()],
+    title: Annotated[str | None, typer.Option()] = None,
+    summary: Annotated[str | None, typer.Option()] = None,
+    category: Annotated[str | None, typer.Option()] = None,
+    labels: Annotated[str | None, typer.Option()] = None,
+    tags: Annotated[str | None, typer.Option()] = None,
+    state: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    client: ReaderClient = ctx.obj["client"]
+    payload = DocumentUpdatePayload(
+        title=title,
+        summary=summary,
+        category=category,
+        labels=parse_tags(labels) if labels else None,
+        tags=parse_tags(tags) if tags else None,
+        location=state,
+    )
+    if not payload.model_dump(exclude_none=True):
+        raise typer.BadParameter("No fields to update")
+    result = client.update_document(document_id, payload)
+    print_result(result, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_pull(client: ReaderClient, args: argparse.Namespace) -> list[dict[str, Any]]:
-    params = {}
-    if args.location:
-        params["location"] = args.location
-    if args.since:
-        params["updatedAfter"] = parse_iso_datetime(args.since)
+@docs_app.command("pull")
+def docs_pull(
+    ctx: typer.Context,
+    location: Annotated[str | None, typer.Option()] = None,
+    since: Annotated[str | None, typer.Option()] = None,
+    limit: Annotated[int, typer.Option()] = 50,
+) -> None:
+    client: ReaderClient = ctx.obj["client"]
+    params = DocumentListParams(
+        location=location,
+        updated_after=parse_iso_datetime(since) if since else None,
+    )
     docs = []
     for idx, doc in enumerate(client.list_documents(params), start=1):
         docs.append(doc)
-        if args.limit and idx >= args.limit:
+        if limit and idx >= limit:
             break
-    return docs
+    print_result(docs, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_validate(client: ReaderClient) -> dict[str, Any]:
+@auth_app.command("validate")
+def auth_validate(ctx: typer.Context) -> None:
+    client: ReaderClient = ctx.obj["client"]
     try:
         client.validate_token()
     except requests.HTTPError as exc:
@@ -227,40 +248,23 @@ def handle_validate(client: ReaderClient) -> dict[str, Any]:
         else:
             status = status_code if status_code is not None else "unknown"
             message = f"Token validation failed with status {status}."
-        return {"valid": False, "status": status_code, "message": message}
+        result = TokenValidationResult(valid=False, status=status_code, message=message)
+        print_result(result, entity="", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+        return
     except APIRequestError as exc:
-        return {"valid": False, "message": f"Token validation failed: {exc}"}
-    return {"valid": True, "message": "Token is valid for Readwise Reader API."}
+        result = TokenValidationResult(valid=False, message=f"Token validation failed: {exc}")
+        print_result(result, entity="", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+        return
+    result = TokenValidationResult(valid=True, message="Token is valid for Readwise Reader API.")
+    print_result(result, entity="", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(list(argv) if argv is not None else None)
-    token = get_reader_token(args.token).value
-    client = ReaderClient(token, dry_run=args.dry_run)
-
-    entity = "document"
-    if args.command == "docs":
-        if args.docs_command == "create":
-            result = handle_create(client, args)
-        elif args.docs_command == "list":
-            result = handle_list(client, args)
-        elif args.docs_command == "update":
-            result = handle_update(client, args)
-        elif args.docs_command == "pull":
-            result = handle_pull(client, args)
-        else:
-            parser.error("Unknown docs subcommand")
-    elif args.command == "auth":
-        entity = ""
-        if args.auth_command == "validate":
-            result = handle_validate(client)
-        else:
-            parser.error("Unknown auth subcommand")
-    else:
-        parser.error("Unknown command")
-
-    print_result(result, entity=entity, raw=args.raw, dry_run=args.dry_run)
+    """Entry point preserving the existing main(argv) interface for tests."""
+    try:
+        app(list(argv) if argv is not None else None, standalone_mode=False)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     return 0
 
 

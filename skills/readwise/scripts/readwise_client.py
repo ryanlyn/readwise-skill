@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 from collections.abc import Iterable
-from typing import Any
+from typing import Annotated, Any
 
 import requests
+import typer
 
 from readwise_common import (
+    Book,
+    BookListParams,
+    DailyReviewParams,
+    DailyReviewResponse,
+    DeleteResult,
+    DryRunResult,
+    Highlight,
+    HighlightCreatePayload,
+    HighlightListParams,
+    HighlightUpdatePayload,
     build_location_payload,
     build_tags,
     get_readwise_token,
@@ -65,151 +75,116 @@ class ReadwiseClient:
             if not cursor and not next_url:
                 break
 
-    def create_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def create_highlight(self, payload: HighlightCreatePayload) -> Highlight | DryRunResult:
+        data = payload.model_dump(exclude_none=True)
         if self.dry_run:
-            return {"dry_run": True, "request_payload": payload}
-        response = self._request("post", "/highlights/", json={"highlights": [payload]})
-        data = response.json()
-        # The real API returns a list of books with modified_highlights IDs
-        if isinstance(data, list) and len(data) == 1:
-            book = data[0]
+            return DryRunResult(request_payload=data)
+        response = self._request("post", "/highlights/", json={"highlights": [data]})
+        resp_data = response.json()
+        if isinstance(resp_data, list) and len(resp_data) == 1:
+            book = resp_data[0]
             highlight_ids = book.get("modified_highlights", [])
             if highlight_ids:
                 return self.get_highlight(highlight_ids[0])
-            return book
-        # Stub server returns {"highlights": [...]}
-        highlights = data.get("highlights")
+            return Highlight.model_validate(book)
+        highlights = resp_data.get("highlights")
         if isinstance(highlights, list) and len(highlights) == 1:
-            return highlights[0]
-        return data
+            return Highlight.model_validate(highlights[0])
+        return Highlight.model_validate(resp_data)
 
-    def list_highlights(self, params: dict[str, Any]) -> Iterable[dict[str, Any]]:
-        return self.paginate("/highlights/", params)
+    def list_highlights(self, params: HighlightListParams) -> Iterable[Highlight]:
+        query: dict[str, Any] = {}
+        if params.book_id is not None:
+            query["book_id"] = params.book_id
+        if params.tag is not None:
+            query["tag"] = params.tag
+        if params.updated_after is not None:
+            query["updatedAfter"] = params.updated_after
+        if params.updated_before is not None:
+            query["updatedBefore"] = params.updated_before
+        if params.category is not None:
+            query["category"] = params.category
+        for item in self.paginate("/highlights/", query):
+            yield Highlight.model_validate(item)
 
-    def get_highlight(self, highlight_id: int) -> dict[str, Any]:
+    def get_highlight(self, highlight_id: int) -> Highlight:
         response = self._request("get", f"/highlights/{highlight_id}/")
-        return response.json()
+        return Highlight.model_validate(response.json())
 
-    def update_highlight(self, highlight_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    def update_highlight(self, highlight_id: int, payload: HighlightUpdatePayload) -> Highlight | DryRunResult:
+        data = payload.model_dump(exclude_none=True)
         if self.dry_run:
-            return {"dry_run": True, "highlight_id": highlight_id, "request_payload": payload}
-        response = self._request("patch", f"/highlights/{highlight_id}/", json=payload)
-        return response.json()
+            return DryRunResult(highlight_id=highlight_id, request_payload=data)
+        response = self._request("patch", f"/highlights/{highlight_id}/", json=data)
+        return Highlight.model_validate(response.json())
 
-    def delete_highlight(self, highlight_id: int) -> dict[str, Any]:
+    def delete_highlight(self, highlight_id: int) -> DeleteResult | DryRunResult:
         if self.dry_run:
-            return {"dry_run": True, "highlight_id": highlight_id, "action": "delete"}
+            return DryRunResult(highlight_id=highlight_id, action="delete")
         self._request("delete", f"/highlights/{highlight_id}/")
-        return {"deleted": True, "highlight_id": highlight_id}
+        return DeleteResult(deleted=True, highlight_id=highlight_id)
 
-    def daily_review(self, params: dict[str, Any]) -> dict[str, Any]:
-        response = self._request("get", "/export/", params=params)
-        return response.json()
+    def daily_review(self, params: DailyReviewParams) -> DailyReviewResponse:
+        query: dict[str, Any] = {}
+        if params.updated_after is not None:
+            query["updatedAfter"] = params.updated_after
+        if params.updated_before is not None:
+            query["updatedBefore"] = params.updated_before
+        query["limit"] = params.limit
+        response = self._request("get", "/export/", params=query)
+        return DailyReviewResponse.model_validate(response.json())
 
-    def list_books(self, params: dict[str, Any]) -> Iterable[dict[str, Any]]:
-        return self.paginate("/books/", params)
+    def list_books(self, params: BookListParams) -> Iterable[Book]:
+        for item in self.paginate("/books/"):
+            yield Book.model_validate(item)
 
-    def get_book(self, book_id: int) -> dict[str, Any]:
+    def get_book(self, book_id: int) -> Book:
         response = self._request("get", f"/books/{book_id}/")
-        return response.json()
+        return Book.model_validate(response.json())
 
 
-def _add_common_create_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--text", help="Highlight text. Falls back to --text-file or stdin.")
-    parser.add_argument("--text-file", help="Path to file containing highlight text")
-    parser.add_argument("--title", help="Optional title to associate")
-    parser.add_argument("--author", help="Author name")
-    parser.add_argument("--source-url", dest="source_url", help="Source URL")
-    parser.add_argument("--book-id", type=int, help="Existing Readwise book ID")
-    parser.add_argument("--category", choices=["articles", "books", "tweets", "podcasts", "supplementals"], help="Highlight category")
-    parser.add_argument("--note", help="Personal note to attach")
-    parser.add_argument("--tags", help="Comma-separated tags")
-    parser.add_argument("--location")
-    parser.add_argument("--location-type", dest="location_type", help="Location type (page, order, none, etc.)")
-    parser.add_argument("--generated", action="store_true", help="Tag highlight as synthetic by appending .generated")
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Interact with the Readwise Original API")
-    parser.add_argument("--token", help="Override READWISE_TOKEN env var")
-    parser.add_argument("--raw", action="store_true", help="Output full JSON (all fields)")
-    parser.add_argument("--dry-run", action="store_true", help="Print payloads without calling the API")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    highlight = subparsers.add_parser("highlight", help="Operate on a single highlight")
-    highlight_sub = highlight.add_subparsers(dest="highlight_command", required=True)
-
-    create = highlight_sub.add_parser("create", help="Create a highlight")
-    _add_common_create_args(create)
-    create.add_argument("--bulk-file", help="NDJSON payloads for batch create")
-
-    show = highlight_sub.add_parser("show", help="Fetch a highlight by id")
-    show.add_argument("highlight_id", type=int)
-
-    update = highlight_sub.add_parser("update", help="Patch highlight fields")
-    update.add_argument("highlight_id", type=int)
-    _add_common_create_args(update)
-
-    delete = highlight_sub.add_parser("delete", help="Delete a highlight")
-    delete.add_argument("highlight_id", type=int)
-    delete.add_argument("--yes", action="store_true", help="Do not prompt for confirmation")
-
-    highlights = subparsers.add_parser("highlights", help="List or review highlights")
-    highlights_sub = highlights.add_subparsers(dest="highlights_command", required=True)
-
-    listing = highlights_sub.add_parser("list", help="List highlights with filters")
-    listing.add_argument("--book-id", type=int)
-    listing.add_argument("--tag")
-    listing.add_argument("--updated-after")
-    listing.add_argument("--updated-before")
-    listing.add_argument("--limit", type=int, default=50)
-    listing.add_argument("--category", choices=["articles", "books", "tweets", "podcasts", "supplementals"])
-
-    review = highlights_sub.add_parser("review", help="Daily review export")
-    review.add_argument("--since", help="ISO timestamp or YYYY-MM-DD")
-    review.add_argument("--until", help="ISO timestamp or YYYY-MM-DD")
-    review.add_argument("--limit", type=int, default=50)
-
-    books = subparsers.add_parser("books", help="List books")
-    books.add_argument("--limit", type=int, default=50)
-    books.add_argument("--author")
-    books.add_argument("--title", help="Filter by title (case-insensitive substring match)")
-
-    book = subparsers.add_parser("book", help="Fetch a single book")
-    book.add_argument("book_id", type=int)
-
-    return parser
+# ---------------------------------------------------------------------------
+# Payload helpers
+# ---------------------------------------------------------------------------
 
 
 def _build_highlight_payload(
-    args: argparse.Namespace,
     *,
+    text: str | None,
+    text_file: str | None,
+    title: str | None,
+    author: str | None,
+    source_url: str | None,
+    book_id: int | None,
+    category: str | None,
+    note: str | None,
+    tags_raw: str | None,
+    location: str | None,
+    location_type: str | None,
+    generated: bool,
     require_text: bool,
-    override_generated: bool | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {}
-    generated = args.generated if override_generated is None else override_generated
-    should_load_text = bool(getattr(args, "text", None) or getattr(args, "text_file", None) or not sys.stdin.isatty())
+    should_load_text = bool(text or text_file or not sys.stdin.isatty())
     if should_load_text:
         try:
-            payload["text"] = resolve_highlight_text(getattr(args, "text", None), getattr(args, "text_file", None))
+            payload["text"] = resolve_highlight_text(text, text_file)
         except ValueError:
             if require_text:
                 raise
-    for field in ("title", "author", "source_url", "note"):
-        value = getattr(args, field, None)
+    for field, value in [("title", title), ("author", author), ("source_url", source_url), ("note", note)]:
         if value:
             payload[field] = value
-    if getattr(args, "book_id", None):
-        payload["book_id"] = args.book_id
-    if getattr(args, "category", None):
-        payload["category"] = args.category
+    if book_id:
+        payload["book_id"] = book_id
+    if category:
+        payload["category"] = category
 
-    tags = build_tags(parse_tags(getattr(args, "tags", None)), generated)
-    if tags:
-        payload["tags"] = tags
+    tag_list = build_tags(parse_tags(tags_raw), generated)
+    if tag_list:
+        payload["tags"] = tag_list
 
-    payload.update(build_location_payload(getattr(args, "location", None), getattr(args, "location_type", None), generated))
+    payload.update(build_location_payload(location, location_type, generated))
     return payload
 
 
@@ -235,143 +210,222 @@ def _normalize_datetime_arg(label: str, value: str) -> str:
 
 
 def _resolve_book_id(client: ReadwiseClient, payload: dict[str, Any]) -> None:
-    """Replace book_id with book metadata so the API's dedup matches correctly.
-
-    The Readwise API ignores book_id on highlight create and matches by
-    title/author/source_url instead.  When the caller supplies a book_id
-    without an explicit title we look up the book and inject its metadata.
-    """
+    """Replace book_id with book metadata so the API's dedup matches correctly."""
     book_id = payload.pop("book_id", None)
     if book_id and not payload.get("title"):
         book = client.get_book(book_id)
-        payload["title"] = book["title"]
-        for field, book_key in [("author", "author"), ("source_url", "source_url"), ("category", "category"), ("source_type", "source")]:
-            if book.get(book_key):
-                payload.setdefault(field, book[book_key])
+        payload["title"] = book.title
+        for field, book_attr in [("author", "author"), ("source_url", "source_url"), ("category", "category"), ("source_type", "source")]:
+            value = getattr(book, book_attr, None)
+            if value:
+                payload.setdefault(field, value)
 
 
-def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) -> list[dict[str, Any]]:
+# ---------------------------------------------------------------------------
+# Typer CLI
+# ---------------------------------------------------------------------------
+
+app = typer.Typer(help="Interact with the Readwise Original API")
+highlight_app = typer.Typer(help="Operate on a single highlight")
+highlights_app = typer.Typer(help="List or review highlights")
+
+app.add_typer(highlight_app, name="highlight")
+app.add_typer(highlights_app, name="highlights")
+
+
+@app.callback()
+def app_callback(
+    ctx: typer.Context,
+    token: Annotated[str | None, typer.Option(help="Override READWISE_TOKEN env var")] = None,
+    raw: Annotated[bool, typer.Option("--raw", help="Output full JSON (all fields)")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Print payloads without calling the API")] = False,
+) -> None:
+    resolved = get_readwise_token(token)
+    ctx.ensure_object(dict)
+    ctx.obj["client"] = ReadwiseClient(resolved.value, dry_run=dry_run)
+    ctx.obj["raw"] = raw
+    ctx.obj["dry_run"] = dry_run
+
+
+@highlight_app.command("create")
+def highlight_create(
+    ctx: typer.Context,
+    text: Annotated[str | None, typer.Option(help="Highlight text. Falls back to --text-file or stdin.")] = None,
+    text_file: Annotated[str | None, typer.Option("--text-file", help="Path to file containing highlight text")] = None,
+    title: Annotated[str | None, typer.Option(help="Optional title to associate")] = None,
+    author: Annotated[str | None, typer.Option(help="Author name")] = None,
+    source_url: Annotated[str | None, typer.Option("--source-url", help="Source URL")] = None,
+    book_id: Annotated[int | None, typer.Option("--book-id", help="Existing Readwise book ID")] = None,
+    category: Annotated[str | None, typer.Option(help="Highlight category")] = None,
+    note: Annotated[str | None, typer.Option(help="Personal note to attach")] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags")] = None,
+    location: Annotated[str | None, typer.Option()] = None,
+    location_type: Annotated[str | None, typer.Option("--location-type", help="Location type")] = None,
+    generated: Annotated[bool, typer.Option("--generated", help="Tag highlight as synthetic")] = False,
+    bulk_file: Annotated[str | None, typer.Option("--bulk-file", help="NDJSON payloads for batch create")] = None,
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
     payloads: list[dict[str, Any]] = []
-    if args.bulk_file:
-        for entry in load_bulk_payloads(args.bulk_file):
-            payloads.append(_normalize_bulk_payload(entry, args.generated))
+    if bulk_file:
+        for entry in load_bulk_payloads(bulk_file):
+            payloads.append(_normalize_bulk_payload(entry, generated))
     else:
-        payload = _build_highlight_payload(args, require_text=True)
+        payload = _build_highlight_payload(
+            text=text, text_file=text_file, title=title, author=author,
+            source_url=source_url, book_id=book_id, category=category, note=note,
+            tags_raw=tags, location=location, location_type=location_type,
+            generated=generated, require_text=True,
+        )
         if "text" not in payload:
-            raise ValueError("Highlight text is required")
+            raise typer.BadParameter("Highlight text is required")
         payloads.append(payload)
 
     for p in payloads:
         _resolve_book_id(client, p)
 
-    return [client.create_highlight(p) for p in payloads]
+    results = [client.create_highlight(HighlightCreatePayload.model_validate(p)) for p in payloads]
+    print_result(results, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
-    return client.get_highlight(args.highlight_id)
+@highlight_app.command("show")
+def highlight_show(
+    ctx: typer.Context,
+    highlight_id: Annotated[int, typer.Argument()],
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    result = client.get_highlight(highlight_id)
+    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
-    payload = _build_highlight_payload(args, require_text=False)
+@highlight_app.command("update")
+def highlight_update(
+    ctx: typer.Context,
+    highlight_id: Annotated[int, typer.Argument()],
+    text: Annotated[str | None, typer.Option(help="Highlight text")] = None,
+    text_file: Annotated[str | None, typer.Option("--text-file")] = None,
+    title: Annotated[str | None, typer.Option()] = None,
+    author: Annotated[str | None, typer.Option()] = None,
+    source_url: Annotated[str | None, typer.Option("--source-url")] = None,
+    book_id: Annotated[int | None, typer.Option("--book-id")] = None,
+    category: Annotated[str | None, typer.Option()] = None,
+    note: Annotated[str | None, typer.Option()] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags")] = None,
+    location: Annotated[str | None, typer.Option()] = None,
+    location_type: Annotated[str | None, typer.Option("--location-type")] = None,
+    generated: Annotated[bool, typer.Option("--generated")] = False,
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    payload = _build_highlight_payload(
+        text=text, text_file=text_file, title=title, author=author,
+        source_url=source_url, book_id=book_id, category=category, note=note,
+        tags_raw=tags, location=location, location_type=location_type,
+        generated=generated, require_text=False,
+    )
     if not payload:
-        raise ValueError("No fields to update")
-    return client.update_highlight(args.highlight_id, payload)
+        raise typer.BadParameter("No fields to update")
+    result = client.update_highlight(highlight_id, HighlightUpdatePayload.model_validate(payload))
+    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
-    if not args.yes:
-        confirmation = input(f"Delete highlight {args.highlight_id}? [y/N] ")
+@highlight_app.command("delete")
+def highlight_delete(
+    ctx: typer.Context,
+    highlight_id: Annotated[int, typer.Argument()],
+    yes: Annotated[bool, typer.Option("--yes", help="Do not prompt for confirmation")] = False,
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    if not yes:
+        confirmation = input(f"Delete highlight {highlight_id}? [y/N] ")
         if confirmation.strip().lower() not in {"y", "yes"}:
             print("Aborted", file=sys.stderr)
-            return {"deleted": False}
-    return client.delete_highlight(args.highlight_id)
+            print_result({"deleted": False}, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+            return
+    result = client.delete_highlight(highlight_id)
+    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> list[dict[str, Any]]:
-    params = {}
-    if args.book_id:
-        params["book_id"] = args.book_id
-    if args.tag:
-        params["tag"] = args.tag
-    if args.updated_after:
-        params["updatedAfter"] = _normalize_datetime_arg("--updated-after", args.updated_after)
-    if args.updated_before:
-        params["updatedBefore"] = _normalize_datetime_arg("--updated-before", args.updated_before)
-    if args.category:
-        params["category"] = args.category
+@highlights_app.command("list")
+def highlights_list(
+    ctx: typer.Context,
+    book_id: Annotated[int | None, typer.Option("--book-id")] = None,
+    tag: Annotated[str | None, typer.Option()] = None,
+    updated_after: Annotated[str | None, typer.Option("--updated-after")] = None,
+    updated_before: Annotated[str | None, typer.Option("--updated-before")] = None,
+    limit: Annotated[int, typer.Option()] = 50,
+    category: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    params = HighlightListParams(
+        book_id=book_id,
+        tag=tag,
+        updated_after=_normalize_datetime_arg("--updated-after", updated_after) if updated_after else None,
+        updated_before=_normalize_datetime_arg("--updated-before", updated_before) if updated_before else None,
+        category=category,
+    )
     results = []
     for idx, highlight in enumerate(client.list_highlights(params), start=1):
         results.append(highlight)
-        if args.limit and idx >= args.limit:
+        if limit and idx >= limit:
             break
-    return results
+    print_result(results, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
-    params = {}
-    if args.since:
-        params["updatedAfter"] = _normalize_datetime_arg("--since", args.since)
-    if args.until:
-        params["updatedBefore"] = _normalize_datetime_arg("--until", args.until)
-    params["limit"] = args.limit
-    return client.daily_review(params)
+@highlights_app.command("review")
+def highlights_review(
+    ctx: typer.Context,
+    since: Annotated[str | None, typer.Option(help="ISO timestamp or YYYY-MM-DD")] = None,
+    until: Annotated[str | None, typer.Option(help="ISO timestamp or YYYY-MM-DD")] = None,
+    limit: Annotated[int, typer.Option()] = 50,
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    params = DailyReviewParams(
+        updated_after=_normalize_datetime_arg("--since", since) if since else None,
+        updated_before=_normalize_datetime_arg("--until", until) if until else None,
+        limit=limit,
+    )
+    result = client.daily_review(params)
+    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_books_list(client: ReadwiseClient, args: argparse.Namespace) -> list[dict[str, Any]]:
-    params = {}
-    author_filter = (args.author or "").lower()
-    title_filter = (args.title or "").lower()
+@app.command("books")
+def books_list(
+    ctx: typer.Context,
+    limit: Annotated[int, typer.Option()] = 50,
+    author: Annotated[str | None, typer.Option()] = None,
+    title: Annotated[str | None, typer.Option(help="Filter by title (case-insensitive substring match)")] = None,
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    params = BookListParams(author=author, title=title)
+    author_filter = (params.author or "").lower()
+    title_filter = (params.title or "").lower()
     results = []
     for book in client.list_books(params):
-        if author_filter and author_filter not in (book.get("author") or "").lower():
+        if author_filter and author_filter not in (book.author or "").lower():
             continue
-        if title_filter and title_filter not in (book.get("title") or "").lower():
+        if title_filter and title_filter not in (book.title or "").lower():
             continue
         results.append(book)
-        if args.limit and len(results) >= args.limit:
+        if limit and len(results) >= limit:
             break
-    return results
+    print_result(results, entity="book", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
-def handle_book_show(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
-    return client.get_book(args.book_id)
+@app.command("book")
+def book_show(
+    ctx: typer.Context,
+    book_id: Annotated[int, typer.Argument()],
+) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    result = client.get_book(book_id)
+    print_result(result, entity="book", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(list(argv) if argv is not None else None)
-    token = get_readwise_token(args.token).value
-    client = ReadwiseClient(token, dry_run=args.dry_run)
-
-    entity = "highlight"
-    if args.command == "highlight":
-        if args.highlight_command == "create":
-            result = handle_highlight_create(client, args)
-        elif args.highlight_command == "show":
-            result = handle_highlight_show(client, args)
-        elif args.highlight_command == "update":
-            result = handle_highlight_update(client, args)
-        elif args.highlight_command == "delete":
-            result = handle_highlight_delete(client, args)
-        else:
-            parser.error("Unknown highlight subcommand")
-    elif args.command == "highlights":
-        if args.highlights_command == "list":
-            result = handle_highlights_list(client, args)
-        elif args.highlights_command == "review":
-            result = handle_highlights_review(client, args)
-        else:
-            parser.error("Unknown highlights subcommand")
-    elif args.command == "books":
-        result = handle_books_list(client, args)
-        entity = "book"
-    elif args.command == "book":
-        result = handle_book_show(client, args)
-        entity = "book"
-    else:
-        parser.error("Unknown command")
-
-    print_result(result, entity=entity, raw=args.raw, dry_run=args.dry_run)
+    """Entry point preserving the existing main(argv) interface for tests."""
+    try:
+        app(list(argv) if argv is not None else None, standalone_mode=False)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     return 0
 
 

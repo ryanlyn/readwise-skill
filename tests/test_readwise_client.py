@@ -8,6 +8,13 @@ from datetime import datetime
 import pytest
 
 from readwise_common.formatting import select_fields
+from readwise_common.models import (
+    BookListParams,
+    DailyReviewParams,
+    HighlightCreatePayload,
+    HighlightListParams,
+    HighlightUpdatePayload,
+)
 from readwise_common.schemas import DISPLAY_FIELDS
 from skills.readwise.scripts.readwise_client import ReadwiseClient, main as readwise_main
 
@@ -19,90 +26,90 @@ def readwise_client() -> ReadwiseClient:
     return ReadwiseClient(token, base_url=base_url)
 
 
-def _collect(iterable: Iterable[dict]) -> list[dict]:
-    return list(iterable)
-
-
 def test_list_highlights_filters_by_book(readwise_client: ReadwiseClient) -> None:
-    results = _collect(readwise_client.list_highlights({"book_id": 1337}))
+    params = HighlightListParams(book_id=1337)
+    results = list(readwise_client.list_highlights(params))
     assert results, "Expected highlights for book 1337"
     for highlight in results:
-        assert highlight["book_id"] == 1337
+        assert highlight.book_id == 1337
 
 
 def test_highlight_crud_flow(readwise_client: ReadwiseClient) -> None:
-    payload = {
-        "text": "Integration test highlight",
-        "note": "created via tests",
-        "location": 1,
-        "location_type": "order",
-        "tags": ["integration-test"],
-    }
+    payload = HighlightCreatePayload(
+        text="Integration test highlight",
+        note="created via tests",
+        location="1",
+        location_type="order",
+        tags=["integration-test"],
+    )
     created = readwise_client.create_highlight(payload)
-    highlight_id = created["id"]
-    assert created["text"] == payload["text"]
-    assert created["color"] == "yellow"
+    highlight_id = created.id
+    assert created.text == payload.text
+    assert created.color == "yellow"
 
-    updated = readwise_client.update_highlight(highlight_id, {"color": "pink", "note": "updated"})
-    assert updated["color"] == "pink"
-    assert updated["note"] == "updated"
+    updated = readwise_client.update_highlight(
+        highlight_id, HighlightUpdatePayload(color="pink", note="updated")
+    )
+    assert updated.color == "pink"
+    assert updated.note == "updated"
 
     readwise_client.delete_highlight(highlight_id)
-    remaining = _collect(readwise_client.list_highlights({"book_id": created["book_id"]}))
-    remaining_ids = {item["id"] for item in remaining}
+    remaining = list(readwise_client.list_highlights(HighlightListParams(book_id=created.book_id)))
+    remaining_ids = {item.id for item in remaining}
     assert highlight_id not in remaining_ids
 
 
 def test_books_list(readwise_client: ReadwiseClient) -> None:
-    books = _collect(readwise_client.list_books({}))
-    titles = {book["title"] for book in books}
+    books = list(readwise_client.list_books(BookListParams()))
+    titles = {book.title for book in books}
     assert "Meditations" in titles
     assert "Design Systems and Team Flow" in titles
 
 
 def test_get_highlight(readwise_client: ReadwiseClient) -> None:
     highlight = readwise_client.get_highlight(13)
-    assert highlight["id"] == 13
-    assert highlight["book_id"] == 1337
+    assert highlight.id == 13
+    assert highlight.book_id == 1337
 
 
 def test_highlights_paginate_with_cursor(readwise_client: ReadwiseClient) -> None:
     for idx in range(3):
         readwise_client.create_highlight(
-            {
-                "text": f"Paginated highlight {idx}",
-                "note": "pagination-test",
-                "location": idx + 1,
-                "location_type": "order",
-            }
+            HighlightCreatePayload(
+                text=f"Paginated highlight {idx}",
+                note="pagination-test",
+                location=str(idx + 1),
+                location_type="order",
+            )
         )
-    highlights = _collect(readwise_client.list_highlights({"page_size": 2}))
+    highlights = list(readwise_client.list_highlights(HighlightListParams()))
     assert len(highlights) >= 5
-    assert len({item["id"] for item in highlights}) == len(highlights)
+    assert len({item.id for item in highlights}) == len(highlights)
 
 
 def test_daily_review_filters_by_date(readwise_client: ReadwiseClient) -> None:
-    response = readwise_client.daily_review({"updatedAfter": "2020-12-31T00:00:00+00:00", "limit": 10})
-    results = response["results"]
+    params = DailyReviewParams(updated_after="2020-12-31T00:00:00+00:00", limit=10)
+    response = readwise_client.daily_review(params)
+    results = response.results
     assert results
 
     def _parse(ts: str) -> datetime:
         return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
     cutoff = datetime.fromisoformat("2020-12-31T00:00:00+00:00")
-    assert all(_parse(item["highlighted_at"]) > cutoff for item in results)
+    assert all(_parse(item.highlighted_at) > cutoff for item in results)
 
 
 def test_get_book_detail(readwise_client: ReadwiseClient) -> None:
     book = readwise_client.get_book(1337)
-    assert book["title"] == "Meditations"
-    assert book["author"] == "Marcus Aurelius"
+    assert book.title == "Meditations"
+    assert book.author == "Marcus Aurelius"
 
 
 def test_books_paginate_with_cursor(readwise_client: ReadwiseClient) -> None:
-    books = _collect(readwise_client.list_books({"page_size": 1}))
+    books = list(readwise_client.list_books(BookListParams()))
     assert len(books) >= 2
-    assert {book["title"] for book in books} >= {"Meditations", "Design Systems and Team Flow"}
+    assert {book.title for book in books} >= {"Meditations", "Design Systems and Team Flow"}
 
 
 def test_books_author_filter(capsys: pytest.CaptureFixture[str]) -> None:
@@ -145,10 +152,12 @@ def test_dry_run_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys: pytest.CaptureFixture[str]) -> None:
-    created = readwise_client.create_highlight({"text": "to be kept", "location": 1, "location_type": "order"})
-    highlight_id = created["id"]
+    created = readwise_client.create_highlight(
+        HighlightCreatePayload(text="to be kept", location="1", location_type="order")
+    )
+    highlight_id = created.id
     readwise_main(["--dry-run", "highlight", "delete", str(highlight_id), "--yes"])
-    assert readwise_client.get_highlight(highlight_id)["id"] == highlight_id
+    assert readwise_client.get_highlight(highlight_id).id == highlight_id
 
 
 class TestSelectFields:
