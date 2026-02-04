@@ -1,20 +1,20 @@
 ---
 name: readwise-reader
 description: "Automate the Readwise Reader API for ingesting documents, syncing annotations, and orchestrating triage inside the Reader app. Use when tasks involve the Reader endpoints (articles, RSS, documents, read states)."
-allowed-tools: Bash(python *), Bash(pip install *)
+allowed-tools: Bash(uv run *)
 ---
 
 # Readwise Reader Skill
 
-Use this skill to script workflows against the Readwise Reader product (saved articles, feeds, PDFs, newsletters). Install dependencies via `pip install ${CLAUDE_PLUGIN_ROOT}` before running the CLI.
+Use this skill to script workflows against the Readwise Reader product (saved articles, feeds, PDFs, newsletters).
 
 ## Quick start
 1. Generate a token from https://readwise.io/access_token and store it in `READWISE_TOKEN`.
-2. Call `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py ...` whenever possible; it handles retries, `.generated` tagging, and `--dry-run` against the `/api/v3` endpoints.
+2. Call `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py ...` whenever possible; it handles retries, `.generated` tagging, and `--dry-run` against the `/api/v3` endpoints.
 3. Respect Reader's tighter rate limits (20 req/min). The CLI surfaces remaining budget whenever headers are present; throttle accordingly.
 
 ## CLI commands
-- `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Reader API v3 does not support uploading local files directly.
+- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Reader API v3 does not support uploading local files directly.
 - `... docs list --category new --tag deep-work --limit 25` – paginated document listing with filters on id/category/tag/location/update time.
 - `... docs update <id> [--state archive --tags "deep,focus" --title ...]` – patch metadata/state (`new`, `later`, `archive`). Supports `--dry-run`.
 - `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows.
@@ -37,5 +37,5 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 - Expand with playbooks (e.g., ingestion recipes) as the skill matures.
 
 ## Testing & validation
-- Use `python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader ${CLAUDE_PLUGIN_ROOT}/rw_shared` before shipping changes.
+- Use `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader ${CLAUDE_PLUGIN_ROOT}/readwise_common` before shipping changes.
 - Smoke-test live calls (token required) with `docs create --dry-run`, `docs list --limit 5`, and `docs pull --since <yesterday>` to confirm pagination + tagging rules.

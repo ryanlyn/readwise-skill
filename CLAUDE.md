@@ -4,7 +4,7 @@ Claude Code plugin providing two skills for automating Readwise workflows.
 
 ## Setup
 
-1. Install dependencies: `pip install -e ".[dev]"`
+1. Install dependencies: `uv sync --extra dev`
 2. Set environment variable:
    - `READWISE_TOKEN` — single token for both the Readwise Original and Reader APIs
 
@@ -26,8 +26,8 @@ Both skills use CLI scripts under `skills/*/scripts/` that handle authentication
 ## Testing
 
 ```
-pip install -e ".[dev]"
-pytest tests/
+uv sync --extra dev
+uv run pytest tests/
 ```
 
 Tests use a local stub server (`tests/stub_server/`) that mocks both APIs in-memory. No real API tokens needed.

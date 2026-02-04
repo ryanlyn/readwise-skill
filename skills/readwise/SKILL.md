@@ -1,20 +1,20 @@
 ---
 name: readwise
 description: "Interact with the Readwise Original API for syncing highlights, exporting notes, and managing books/authors. Use whenever tasks require the legacy Readwise endpoints (not the Reader app)."
-allowed-tools: Bash(python *), Bash(pip install *)
+allowed-tools: Bash(uv run *)
 ---
 
 # Readwise Original Skill
 
-Use this skill to automate work with the Readwise "Original" API that powers highlight exports and metadata management. Run `pip install ${CLAUDE_PLUGIN_ROOT}` once so the bundled CLI scripts have `requests` available.
+Use this skill to automate work with the Readwise "Original" API that powers highlight exports and metadata management.
 
 ## Quick start
 1. Obtain a personal Readwise token and store it in the `READWISE_TOKEN` secret.
-2. Use `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py ...` instead of calling the API directly; it handles retries, pagination, rate-limit surfacing, `--dry-run`, and tagging rules.
+2. Use `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py ...` instead of calling the API directly; it handles retries, pagination, rate-limit surfacing, `--dry-run`, and tagging rules.
 3. Keep requests below the documented rate limit (currently 60 req/min). Batch operations and pause between pages when processing large libraries.
 
 ## CLI commands
-- `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--generated] [--tags t1,t2] [--dry-run]`
+- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--generated] [--tags t1,t2] [--dry-run]`
   Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author for the API). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
 - `... highlight update <id> [--title --note --tags --generated]` – partial updates, respects `--dry-run`.
 - `... highlight show <id>` – fetch highlight details.
@@ -61,5 +61,5 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 
 ## Testing & validation
 - Use the dry-run flag in the client to print payloads instead of sending them when iterating on workflows.
-- Run `python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise ${CLAUDE_PLUGIN_ROOT}/rw_shared` before distributing changes to catch syntax issues.
+- Run `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise ${CLAUDE_PLUGIN_ROOT}/readwise_common` before distributing changes to catch syntax issues.
 - For live smoke tests, set `READWISE_TOKEN` and exercise `highlight create --dry-run`, `highlight list`, and `highlights review` against a small limit to verify pagination + rate-limit logging.
