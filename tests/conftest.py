@@ -1,12 +1,18 @@
 import os
+import sys
 import threading
 import time
+from pathlib import Path
 
 import pytest
 import requests
 from werkzeug.serving import make_server
 
-from stub_server.app import app, reset_store
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from stub_server.app import app, reset_store  # noqa: E402
 
 
 class StubServerThread(threading.Thread):
@@ -54,6 +60,7 @@ def configure_env() -> None:
     os.environ["READWISE_READER_TOKEN"] = "stub-token"
     os.environ["READWISE_API_BASE_URL"] = "http://127.0.0.1:3000/api/v2"
     os.environ["READWISE_READER_API_BASE_URL"] = "http://127.0.0.1:3000/api/v3"
+    os.environ["READWISE_READER_AUTH_URL"] = "http://127.0.0.1:3000/api/v2/auth/"
 
 
 @pytest.fixture(autouse=True)

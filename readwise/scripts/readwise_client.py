@@ -44,17 +44,24 @@ class ReadwiseClient:
 
     def paginate(self, path: str, params: Optional[Dict[str, Any]] = None) -> Iterable[Dict[str, Any]]:
         cursor: Optional[str] = None
-        params = dict(params or {})
+        next_url: Optional[str] = None
+        base_params = dict(params or {})
         while True:
-            scoped = dict(params)
+            scoped = dict(base_params)
             if cursor:
                 scoped["pageCursor"] = cursor
-            response = self._request("get", path, params=scoped)
+                cursor = None
+            if next_url:
+                response = request_with_backoff(self.session, "get", next_url)
+                next_url = None
+            else:
+                response = self._request("get", path, params=scoped)
             payload = response.json()
             for item in payload.get("results", []):
                 yield item
             cursor = payload.get("nextPageCursor")
-            if not cursor:
+            next_url = payload.get("next")
+            if not cursor and not next_url:
                 break
 
     def create_highlight(self, payload: Dict[str, Any]) -> Dict[str, Any]:

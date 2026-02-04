@@ -42,6 +42,15 @@ def require_auth() -> Optional[Tuple[Dict[str, str], int]]:
     return None
 
 
+def _parse_cursor(value: Optional[str]) -> int:
+    if not value:
+        return 0
+    try:
+        return int(value.split(":", 1)[-1])
+    except ValueError:
+        return 0
+
+
 @dataclass
 class Store:
     documents: Dict[str, Dict[str, Any]]
@@ -183,12 +192,7 @@ def reader_list() -> Any:
     limit = int(request.args.get("limit", 100))
     limit = max(1, min(limit, 100))
     page_cursor = request.args.get("pageCursor")
-    offset = 0
-    if page_cursor:
-        try:
-            offset = int(page_cursor.split(":", 1)[-1])
-        except ValueError:
-            offset = 0
+    offset = _parse_cursor(page_cursor)
 
     paginated = docs[offset : offset + limit]
     next_cursor = None
@@ -237,6 +241,8 @@ def reader_update(doc_id: str) -> Any:
 
     if "tags" in payload:
         document["tags"] = {tag: tag.replace("-", " ").title() for tag in payload["tags"]}
+    if "labels" in payload:
+        document["labels"] = payload["labels"]
 
     if "seen" in payload:
         if payload["seen"]:
@@ -310,23 +316,77 @@ def highlights_list() -> Any:
         highlights = [h for h in highlights if str(h.get("book_id")) == book_id]
 
     page_size = int(request.args.get("page_size", 100))
-    page = int(request.args.get("page", 1))
     page_size = max(1, min(page_size, 1000))
-    page = max(page, 1)
-    page_results, next_page = paginate(highlights, page, page_size)
+    cursor = _parse_cursor(request.args.get("pageCursor"))
+    if cursor == 0:
+        page = request.args.get("page")
+        if page:
+            try:
+                page_num = max(int(page), 1)
+                cursor = (page_num - 1) * page_size
+            except ValueError:
+                cursor = 0
+    page_results = highlights[cursor : cursor + page_size]
+    next_cursor = None
+    if cursor + page_size < len(highlights):
+        next_cursor = f"cursor:{cursor + page_size}"
+    prev_cursor = None
+    if cursor > 0:
+        prev_cursor = f"cursor:{max(cursor - page_size, 0)}"
 
-    next_url = None
-    if next_page:
-        next_url = f"http://localhost:3000/api/v2/highlights/{next_page}"
+    def _cursor_to_page(offset: int) -> int:
+        return offset // page_size + 1
+
+    def _cursor_url(offset: Optional[str]) -> Optional[str]:
+        if offset is None:
+            return None
+        try:
+            numeric = int(offset.split(":", 1)[-1])
+        except ValueError:
+            return None
+        page = _cursor_to_page(numeric)
+        return f"http://localhost:3000/api/v2/highlights/?page={page}&page_size={page_size}"
 
     return jsonify(
         {
             "count": len(highlights),
-            "next": next_url,
-            "previous": None if page == 1 else f"http://localhost:3000/api/v2/highlights/?page={page - 1}&page_size={page_size}",
+            "next": _cursor_url(next_cursor),
+            "previous": _cursor_url(prev_cursor),
             "results": page_results,
+            "nextPageCursor": next_cursor,
+            "previousPageCursor": prev_cursor,
         }
     )
+
+
+@app.route("/api/v2/export/", methods=["GET"])
+def highlights_export() -> Any:
+    auth_error = require_auth()
+    if auth_error:
+        payload, status = auth_error
+        return jsonify(payload), status
+
+    highlights = list(STORE.highlights.values())
+    updated_after = parse_iso_datetime(request.args.get("updatedAfter", ""))
+    updated_before = parse_iso_datetime(request.args.get("updatedBefore", ""))
+    filtered: List[Dict[str, Any]] = []
+    for highlight in highlights:
+        timestamp = parse_iso_datetime(highlight.get("highlighted_at") or highlight.get("updated") or "")
+        if not timestamp:
+            continue
+        if updated_after and timestamp <= updated_after:
+            continue
+        if updated_before and timestamp >= updated_before:
+            continue
+        filtered.append(highlight)
+    filtered.sort(key=lambda h: parse_iso_datetime(h.get("highlighted_at") or "") or datetime.min.replace(tzinfo=timezone.utc))
+    limit = int(request.args.get("limit", 50))
+    limit = max(1, min(limit, 1000))
+    page_results = filtered[:limit]
+    next_cursor = None
+    if len(filtered) > limit:
+        next_cursor = f"cursor:{limit}"
+    return jsonify({"count": len(filtered), "results": page_results, "nextPageCursor": next_cursor})
 
 
 @app.route("/api/v2/highlights/", methods=["POST"])
@@ -364,6 +424,19 @@ def highlights_create() -> Any:
         created.append(created_highlight)
 
     return jsonify({"highlights": created}), 200
+
+
+@app.route("/api/v2/highlights/<int:highlight_id>/", methods=["GET"])
+def highlight_detail(highlight_id: int) -> Any:
+    auth_error = require_auth()
+    if auth_error:
+        payload, status = auth_error
+        return jsonify(payload), status
+
+    highlight = STORE.highlights.get(highlight_id)
+    if not highlight:
+        return jsonify({"detail": "Highlight not found"}), 404
+    return jsonify(highlight)
 
 
 @app.route("/api/v2/highlights/<int:highlight_id>/", methods=["PATCH"])
@@ -409,23 +482,61 @@ def books_list() -> Any:
 
     books = list(STORE.books.values())
     page_size = int(request.args.get("page_size", 100))
-    page = int(request.args.get("page", 1))
     page_size = max(1, min(page_size, 1000))
-    page = max(page, 1)
-    page_results, next_page = paginate(books, page, page_size)
+    cursor = _parse_cursor(request.args.get("pageCursor"))
+    if cursor == 0:
+        page = request.args.get("page")
+        if page:
+            try:
+                page_num = max(int(page), 1)
+                cursor = (page_num - 1) * page_size
+            except ValueError:
+                cursor = 0
 
-    next_url = None
-    if next_page:
-        next_url = f"http://localhost:3000/api/v2/books/{next_page}"
+    page_results = books[cursor : cursor + page_size]
+    next_cursor = None
+    if cursor + page_size < len(books):
+        next_cursor = f"cursor:{cursor + page_size}"
+    prev_cursor = None
+    if cursor > 0:
+        prev_cursor = f"cursor:{max(cursor - page_size, 0)}"
+
+    def _cursor_to_page(offset: int) -> int:
+        return offset // page_size + 1
+
+    def _cursor_url(offset: Optional[str]) -> Optional[str]:
+        if offset is None:
+            return None
+        try:
+            numeric = int(offset.split(":", 1)[-1])
+        except ValueError:
+            return None
+        page = _cursor_to_page(numeric)
+        return f"http://localhost:3000/api/v2/books/?page={page}&page_size={page_size}"
 
     return jsonify(
         {
             "count": len(books),
-            "next": next_url,
-            "previous": None if page == 1 else f"http://localhost:3000/api/v2/books/?page={page - 1}&page_size={page_size}",
+            "next": _cursor_url(next_cursor),
+            "previous": _cursor_url(prev_cursor),
             "results": page_results,
+            "nextPageCursor": next_cursor,
+            "previousPageCursor": prev_cursor,
         }
     )
+
+
+@app.route("/api/v2/books/<int:book_id>/", methods=["GET"])
+def book_detail(book_id: int) -> Any:
+    auth_error = require_auth()
+    if auth_error:
+        payload, status = auth_error
+        return jsonify(payload), status
+
+    book = STORE.books.get(book_id)
+    if not book:
+        return jsonify({"detail": "Book not found"}), 404
+    return jsonify(book)
 
 
 @app.route("/api/v2/highlights/<int:highlight_id>/tags", methods=["GET"])

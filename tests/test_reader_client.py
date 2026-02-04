@@ -50,3 +50,37 @@ def test_reader_document_crud_flow(reader_client: ReaderClient) -> None:
 
     reader_client.delete_document(doc_id)
     assert list(reader_client.list_documents({"id": doc_id})) == []
+
+
+def test_reader_list_paginates(reader_client: ReaderClient) -> None:
+    created_ids = []
+    for _ in range(3):
+        unique_url = f"https://example.com/docs/{uuid4().hex}"
+        created = reader_client.create_document({"url": unique_url, "title": "Paginated Doc"})
+        created_ids.append(created["id"])
+
+    docs = list(reader_client.list_documents({"limit": 1}))
+    assert set(created_ids).issubset({doc["id"] for doc in docs})
+
+
+def test_reader_list_filters_by_tag(reader_client: ReaderClient) -> None:
+    docs = list(reader_client.list_documents({"tag": "first-tag"}))
+    assert docs
+    assert all("first-tag" in (doc.get("tags") or {}) for doc in docs)
+
+
+def test_reader_update_labels_and_state(reader_client: ReaderClient) -> None:
+    unique_url = f"https://example.com/update/{uuid4().hex}"
+    created = reader_client.create_document({"url": unique_url, "title": "Label Doc"})
+    doc_id = created["id"]
+
+    reader_client.update_document(doc_id, {"location": "later", "labels": ["priority"]})
+    fetched = list(reader_client.list_documents({"id": doc_id}))
+    assert fetched
+    doc = fetched[0]
+    assert doc["location"] == "later"
+    assert "priority" in (doc.get("labels") or [])
+
+
+def test_reader_validate_token(reader_client: ReaderClient) -> None:
+    reader_client.validate_token()

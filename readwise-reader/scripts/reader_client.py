@@ -47,9 +47,11 @@ def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 class ReaderClient:
-    def __init__(self, token: str, *, base_url: Optional[str] = None):
+    def __init__(self, token: str, *, base_url: Optional[str] = None, auth_url: Optional[str] = None):
         resolved = base_url or os.getenv("READWISE_READER_API_BASE_URL") or DEFAULT_BASE_URL
         self.base_url = resolved.rstrip("/")
+        resolved_auth = auth_url or os.getenv("READWISE_READER_AUTH_URL") or AUTH_URL
+        self.auth_url = resolved_auth
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -93,7 +95,7 @@ class ReaderClient:
         return True
 
     def validate_token(self) -> None:
-        response = request_with_backoff(self.session, "get", AUTH_URL)
+        response = request_with_backoff(self.session, "get", self.auth_url)
         if response.status_code != 204:
             error = requests.HTTPError("Unexpected auth response", response=response)
             raise error
