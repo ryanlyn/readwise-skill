@@ -5,9 +5,8 @@ Claude Code plugin providing two skills for automating Readwise workflows.
 ## Setup
 
 1. Install dependencies: `pip install -e ".[dev]"`
-2. Set environment variables:
-   - `READWISE_TOKEN` — for the Readwise Original API (highlights, books, exports)
-   - `READWISE_READER_TOKEN` — for the Readwise Reader API (documents, articles, RSS)
+2. Set environment variable:
+   - `READWISE_TOKEN` — single token for both the Readwise Original and Reader APIs
 
 ## Skills
 

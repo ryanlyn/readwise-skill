@@ -12,6 +12,7 @@ import requests
 from readwise_common import (
     build_tags,
     get_reader_token,
+    parse_iso_datetime,
     parse_tags,
     render_output,
     request_with_backoff,
@@ -102,7 +103,7 @@ class ReaderClient:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interact with Readwise Reader API")
-    parser.add_argument("--token", help="Override READWISE_READER_TOKEN")
+    parser.add_argument("--token", help="Override READWISE_TOKEN")
     parser.add_argument("--output", choices=["json", "markdown", "plain"], default="json")
     parser.add_argument("--dry-run", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -155,7 +156,6 @@ def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
     if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
         raise ValueError("Provide --url or --content")
     if args.dry_run:
-        print(json.dumps(payload, indent=2))
         return payload
     return client.create_document(payload)
 
@@ -171,7 +171,7 @@ def handle_list(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str
     if args.location:
         params["location"] = args.location
     if args.updated_after:
-        params["updatedAfter"] = args.updated_after
+        params["updatedAfter"] = parse_iso_datetime(args.updated_after)
     docs = []
     for idx, doc in enumerate(client.list_documents(params), start=1):
         docs.append(doc)
@@ -195,7 +195,6 @@ def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
     if not payload:
         raise ValueError("No fields to update")
     if args.dry_run:
-        print(json.dumps(payload, indent=2))
         return payload
     return client.update_document(args.document_id, payload)
 
@@ -205,7 +204,7 @@ def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str
     if args.location:
         params["location"] = args.location
     if args.since:
-        params["updatedAfter"] = args.since
+        params["updatedAfter"] = parse_iso_datetime(args.since)
     docs = []
     for idx, doc in enumerate(client.list_documents(params), start=1):
         docs.append(doc)

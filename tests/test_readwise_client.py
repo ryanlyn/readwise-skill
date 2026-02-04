@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from io import StringIO
 from typing import Dict, Iterable, List
 
 import pytest
 
-from skills.readwise.scripts.readwise_client import ReadwiseClient
+from skills.readwise.scripts.readwise_client import ReadwiseClient, main as readwise_main
 
 
 @pytest.fixture
@@ -100,3 +101,18 @@ def test_books_paginate_with_cursor(readwise_client: ReadwiseClient) -> None:
     books = _collect(readwise_client.list_books({"page_size": 1}))
     assert len(books) >= 2
     assert {book["title"] for book in books} >= {"Meditations", "Design Systems and Team Flow"}
+
+
+def test_dry_run_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["--dry-run", "highlight", "create", "--text", "dry run test", "--title", "DryBook"])
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.strip().splitlines() if line.strip()]
+    text_count = sum(1 for line in lines if "dry run test" in line)
+    assert text_count == 1, f"Expected payload printed once, got {text_count} occurrences"
+
+
+def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys: pytest.CaptureFixture[str]) -> None:
+    created = readwise_client.create_highlight({"text": "to be kept", "location": 1, "location_type": "order"})
+    highlight_id = created["id"]
+    readwise_main(["--dry-run", "highlight", "delete", str(highlight_id), "--yes"])
+    assert readwise_client.get_highlight(highlight_id)["id"] == highlight_id

@@ -6,7 +6,6 @@ import os
 from dataclasses import dataclass
 
 READWISE_TOKEN_ENV = "READWISE_TOKEN"
-READWISE_READER_TOKEN_ENV = "READWISE_READER_TOKEN"
 
 
 class MissingTokenError(RuntimeError):
@@ -31,4 +30,4 @@ def get_readwise_token(override: str | None = None) -> Token:
 
 
 def get_reader_token(override: str | None = None) -> Token:
-    return _get_token(READWISE_READER_TOKEN_ENV, override)
+    return _get_token(READWISE_TOKEN_ENV, override)

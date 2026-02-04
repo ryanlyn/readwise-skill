@@ -9,7 +9,7 @@ allowed-tools: Bash(python *), Bash(pip install *)
 Use this skill to script workflows against the Readwise Reader product (saved articles, feeds, PDFs, newsletters). Install dependencies via `pip install ${CLAUDE_PLUGIN_ROOT}` before running the CLI.
 
 ## Quick start
-1. Generate a Reader token from https://readwise.io/reader_api and store it in `READWISE_READER_TOKEN`.
+1. Generate a token from https://readwise.io/access_token and store it in `READWISE_TOKEN`.
 2. Call `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py ...` whenever possible; it handles retries, `.generated` tagging, and `--dry-run` against the `/api/v3` endpoints.
 3. Respect Reader's tighter rate limits (20 req/min). The CLI surfaces remaining budget whenever headers are present; throttle accordingly.
 

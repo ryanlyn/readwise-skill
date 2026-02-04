@@ -67,6 +67,14 @@ class ReadwiseClient:
     def create_highlight(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         response = self._request("post", "/highlights/", json={"highlights": [payload]})
         data = response.json()
+        # The real API returns a list of books with modified_highlights IDs
+        if isinstance(data, list) and len(data) == 1:
+            book = data[0]
+            highlight_ids = book.get("modified_highlights", [])
+            if highlight_ids:
+                return self.get_highlight(highlight_ids[0])
+            return book
+        # Stub server returns {"highlights": [...]}
         highlights = data.get("highlights")
         if isinstance(highlights, list) and len(highlights) == 1:
             return highlights[0]
@@ -230,8 +238,6 @@ def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) ->
         payloads.append(payload)
 
     if args.dry_run:
-        for payload in payloads:
-            print(json.dumps(payload, indent=2))
         return payloads
 
     results = [client.create_highlight(payload) for payload in payloads]
@@ -245,7 +251,6 @@ def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> D
 def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
     payload = _build_highlight_payload(args, require_text=False)
     if args.dry_run:
-        print(json.dumps(payload, indent=2))
         return payload
     if not payload:
         raise ValueError("No fields to update")
@@ -259,8 +264,7 @@ def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) ->
             print("Aborted", file=sys.stderr)
             return {"deleted": False}
     if args.dry_run:
-        print(json.dumps({"deleted_id": args.highlight_id}, indent=2))
-        return {"deleted": False}
+        return {"dry_run": True, "deleted_id": args.highlight_id}
     client.delete_highlight(args.highlight_id)
     return {"deleted": True, "highlight_id": args.highlight_id}
 
