@@ -42,6 +42,22 @@ def require_auth() -> Optional[Tuple[Dict[str, str], int]]:
     return None
 
 
+def _parse_inline_tags(note: str) -> tuple[list[str], str]:
+    """Parse '.tag1 .tag2\\nrest of note' format. Returns (tag_names, clean_note)."""
+    if not note:
+        return [], ""
+    lines = note.split("\n", 1)
+    first_line = lines[0].strip()
+    if not first_line:
+        return [], note
+    words = first_line.split()
+    if all(w.startswith(".") and len(w) > 1 for w in words):
+        tag_names = [w[1:] for w in words]
+        clean_note = lines[1].strip() if len(lines) > 1 else ""
+        return tag_names, clean_note
+    return [], note
+
+
 def _parse_cursor(value: Optional[str]) -> int:
     if not value:
         return 0
@@ -403,10 +419,18 @@ def highlights_create() -> Any:
         highlight_id = STORE.highlight_counter
         STORE.highlight_counter += 1
         book_id = highlight.get("book_id") or next(iter(STORE.books.keys()), 1)
+        raw_note = highlight.get("note", "")
+        tag_names, clean_note = _parse_inline_tags(raw_note)
+
+        tag_objects = []
+        for name in tag_names:
+            STORE.tag_counter += 1
+            tag_objects.append({"id": STORE.tag_counter, "name": name})
+
         created_highlight = {
             "id": highlight_id,
             "text": highlight.get("text", ""),
-            "note": highlight.get("note", ""),
+            "note": clean_note,
             "location": highlight.get("location") or 1,
             "location_type": highlight.get("location_type") or "order",
             "highlighted_at": highlight.get("highlighted_at") or now_iso(),
@@ -416,10 +440,12 @@ def highlights_create() -> Any:
             "updated": now_iso(),
             "book_id": int(book_id),
             "external_id": highlight.get("external_id"),
-            "tags": [],
+            "tags": tag_objects,
             "end_location": highlight.get("end_location"),
             "readwise_url": f"https://readwise.io/open/{highlight_id}",
         }
+        if tag_objects:
+            STORE.highlight_tags[highlight_id] = tag_objects
         STORE.highlights[highlight_id] = created_highlight
         created.append(created_highlight)
 
@@ -436,7 +462,9 @@ def highlight_detail(highlight_id: int) -> Any:
     highlight = STORE.highlights.get(highlight_id)
     if not highlight:
         return jsonify({"detail": "Highlight not found"}), 404
-    return jsonify(highlight)
+    result = dict(highlight)
+    result["tags"] = STORE.highlight_tags.get(highlight_id, highlight.get("tags", []))
+    return jsonify(result)
 
 
 @app.route("/api/v2/highlights/<int:highlight_id>/", methods=["PATCH"])

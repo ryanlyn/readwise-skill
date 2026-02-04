@@ -26,6 +26,7 @@ from .schemas import DISPLAY_FIELDS
 from .utils import (
     build_location_payload,
     build_tags,
+    format_inline_tags,
     parse_iso_datetime,
     parse_tags,
     resolve_highlight_text,
@@ -41,6 +42,7 @@ __all__ = [
     "select_fields",
     "DISPLAY_FIELDS",
     "build_tags",
+    "format_inline_tags",
     "parse_iso_datetime",
     "parse_tags",
     "resolve_highlight_text",
