@@ -8,8 +8,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from readwise_common.schemas import DISPLAY_FIELDS
-
 
 def _to_plain(data: Any) -> Any:
     """Convert Pydantic models (and lists of them) to plain dicts."""
@@ -124,7 +122,7 @@ def render_output(data: Any, fmt: str) -> str:
 def print_result(
     result: Any,
     *,
-    entity: str,
+    fields: list[str] | None = None,
     raw: bool,
     dry_run: bool,
     renderer: Callable[[Any], str] | None = None,
@@ -135,7 +133,6 @@ def print_result(
         print(render_output(result, "json"))
         return
     if not dry_run:
-        fields = DISPLAY_FIELDS.get(entity)
         if fields:
             result = select_fields(result, fields)
         if renderer:

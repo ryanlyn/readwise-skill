@@ -15,7 +15,6 @@ from readwise_common.models import (
     HighlightListParams,
     HighlightUpdatePayload,
 )
-from readwise_common.schemas import DISPLAY_FIELDS
 from skills.readwise.scripts.readwise_client import ReadwiseClient, main as readwise_main
 
 

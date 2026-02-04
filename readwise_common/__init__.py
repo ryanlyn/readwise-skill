@@ -22,7 +22,6 @@ from .models import (
     HighlightUpdatePayload,
     TokenValidationResult,
 )
-from .schemas import DISPLAY_FIELDS
 from .utils import (
     build_location_payload,
     build_tags,
@@ -41,7 +40,6 @@ __all__ = [
     "render_highlights",
     "render_output",
     "select_fields",
-    "DISPLAY_FIELDS",
     "build_tags",
     "format_inline_tags",
     "parse_iso_datetime",

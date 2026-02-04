@@ -34,6 +34,9 @@ from readwise_common import (
 )
 from readwise_common.utils import load_bulk_payloads
 
+HIGHLIGHT_FIELDS = ["id", "text", "note", "tags"]
+BOOK_FIELDS = ["id", "title", "author", "category", "source", "num_highlights"]
+
 DEFAULT_BASE_URL = "https://readwise.io/api/v2"
 USER_AGENT = "readwise-skill-cli/0.1"
 
@@ -298,7 +301,7 @@ def highlight_create(
         _resolve_book_id(client, p)
 
     results = [client.create_highlight(HighlightCreatePayload.model_validate(p)) for p in payloads]
-    print_result(results, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(results, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @highlight_app.command("show")
@@ -308,7 +311,7 @@ def highlight_show(
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     result = client.get_highlight(highlight_id)
-    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @highlight_app.command("update")
@@ -345,7 +348,7 @@ def highlight_update(
         client.tag_highlight(highlight_id, tag_name)
     if result is None:
         result = client.get_highlight(highlight_id)
-    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @highlight_app.command("delete")
@@ -359,10 +362,10 @@ def highlight_delete(
         confirmation = input(f"Delete highlight {highlight_id}? [y/N] ")
         if confirmation.strip().lower() not in {"y", "yes"}:
             print("Aborted", file=sys.stderr)
-            print_result({"deleted": False}, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+            print_result({"deleted": False}, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
             return
     result = client.delete_highlight(highlight_id)
-    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @highlights_app.command("list")
@@ -389,7 +392,7 @@ def highlights_list(
         if limit and idx >= limit:
             break
     print_result(
-        results, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"],
+        results, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"],
         renderer=render_highlights,
     )
 
@@ -408,7 +411,7 @@ def highlights_review(
         limit=limit,
     )
     result = client.daily_review(params)
-    print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @app.command("books")
@@ -431,7 +434,7 @@ def books_list(
         results.append(book)
         if limit and len(results) >= limit:
             break
-    print_result(results, entity="book", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(results, fields=BOOK_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @app.command("book")
@@ -441,7 +444,7 @@ def book_show(
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     result = client.get_book(book_id)
-    print_result(result, entity="book", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=BOOK_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 def main(argv: Iterable[str] | None = None) -> int:

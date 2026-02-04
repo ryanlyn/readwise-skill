@@ -27,6 +27,8 @@ from readwise_common import (
 )
 from readwise_common.http import APIRequestError
 
+DOCUMENT_FIELDS = ["id", "url", "title", "category", "location", "tags"]
+
 DEFAULT_BASE_URL = "https://readwise.io/api/v3"
 AUTH_URL = "https://readwise.io/api/v2/auth/"
 USER_AGENT = "readwise-reader-skill/0.1"
@@ -159,7 +161,7 @@ def docs_create(
     if not data.get("url") and not data.get("html"):
         raise typer.BadParameter("Provide --url or --content")
     result = client.create_document(payload)
-    print_result(result, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=DOCUMENT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @docs_app.command("list")
@@ -185,7 +187,7 @@ def docs_list(
         docs.append(doc)
         if limit and idx >= limit:
             break
-    print_result(docs, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(docs, fields=DOCUMENT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @docs_app.command("update")
@@ -211,7 +213,7 @@ def docs_update(
     if not payload.model_dump(exclude_none=True):
         raise typer.BadParameter("No fields to update")
     result = client.update_document(document_id, payload)
-    print_result(result, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=DOCUMENT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @docs_app.command("pull")
@@ -231,7 +233,7 @@ def docs_pull(
         docs.append(doc)
         if limit and idx >= limit:
             break
-    print_result(docs, entity="document", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(docs, fields=DOCUMENT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @auth_app.command("validate")
@@ -249,14 +251,14 @@ def auth_validate(ctx: typer.Context) -> None:
             status = status_code if status_code is not None else "unknown"
             message = f"Token validation failed with status {status}."
         result = TokenValidationResult(valid=False, status=status_code, message=message)
-        print_result(result, entity="", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+        print_result(result, fields=None, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
         return
     except APIRequestError as exc:
         result = TokenValidationResult(valid=False, message=f"Token validation failed: {exc}")
-        print_result(result, entity="", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+        print_result(result, fields=None, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
         return
     result = TokenValidationResult(valid=True, message="Token is valid for Readwise Reader API.")
-    print_result(result, entity="", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(result, fields=None, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 def main(argv: Iterable[str] | None = None) -> int:
