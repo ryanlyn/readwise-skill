@@ -301,12 +301,13 @@ def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -
 
 def handle_books_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
-    if args.author:
-        params["author"] = args.author
+    author_filter = (args.author or "").lower()
     results = []
-    for idx, book in enumerate(client.list_books(params), start=1):
+    for book in client.list_books(params):
+        if author_filter and author_filter not in (book.get("author") or "").lower():
+            continue
         results.append(book)
-        if args.limit and idx >= args.limit:
+        if args.limit and len(results) >= args.limit:
             break
     return results
 

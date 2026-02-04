@@ -103,6 +103,20 @@ def test_books_paginate_with_cursor(readwise_client: ReadwiseClient) -> None:
     assert {book["title"] for book in books} >= {"Meditations", "Design Systems and Team Flow"}
 
 
+def test_books_author_filter(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["books", "--author", "Marcus Aurelius"])
+    captured = capsys.readouterr()
+    assert "Meditations" in captured.out
+    assert "Design Systems" not in captured.out
+
+
+def test_book_show(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["book", "1337"])
+    captured = capsys.readouterr()
+    assert "Meditations" in captured.out
+    assert "Marcus Aurelius" in captured.out
+
+
 def test_dry_run_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
     readwise_main(["--dry-run", "highlight", "create", "--text", "dry run test", "--title", "DryBook"])
     captured = capsys.readouterr()
