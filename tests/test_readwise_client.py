@@ -110,11 +110,26 @@ def test_books_author_filter(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Design Systems" not in captured.out
 
 
+def test_books_title_filter(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["books", "--title", "meditations"])
+    captured = capsys.readouterr()
+    assert "Meditations" in captured.out
+    assert "Design Systems" not in captured.out
+
+
 def test_book_show(capsys: pytest.CaptureFixture[str]) -> None:
     readwise_main(["book", "1337"])
     captured = capsys.readouterr()
     assert "Meditations" in captured.out
     assert "Marcus Aurelius" in captured.out
+
+
+def test_book_id_resolves_to_title_author(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["--dry-run", "highlight", "create", "--text", "resolved", "--book-id", "1337"])
+    captured = capsys.readouterr()
+    assert "Meditations" in captured.out
+    assert "Marcus Aurelius" in captured.out
+    assert "book_id" not in captured.out
 
 
 def test_dry_run_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
@@ -123,6 +138,8 @@ def test_dry_run_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
     lines = [line for line in captured.out.strip().splitlines() if line.strip()]
     text_count = sum(1 for line in lines if "dry run test" in line)
     assert text_count == 1, f"Expected payload printed once, got {text_count} occurrences"
+    assert "dry_run" in captured.out
+    assert "request_payload" in captured.out
 
 
 def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys: pytest.CaptureFixture[str]) -> None:

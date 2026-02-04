@@ -166,6 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
     books = subparsers.add_parser("books", help="List books")
     books.add_argument("--limit", type=int, default=50)
     books.add_argument("--author")
+    books.add_argument("--title", help="Filter by title (case-insensitive substring match)")
 
     book = subparsers.add_parser("book", help="Fetch a single book")
     book.add_argument("book_id", type=int)
@@ -226,6 +227,22 @@ def _normalize_datetime_arg(label: str, value: str) -> str:
         raise ValueError(f"{label} must be an ISO date or datetime") from exc
 
 
+def _resolve_book_id(client: ReadwiseClient, payload: Dict[str, Any]) -> None:
+    """Replace book_id with book metadata so the API's dedup matches correctly.
+
+    The Readwise API ignores book_id on highlight create and matches by
+    title/author/source_url instead.  When the caller supplies a book_id
+    without an explicit title we look up the book and inject its metadata.
+    """
+    book_id = payload.pop("book_id", None)
+    if book_id and not payload.get("title"):
+        book = client.get_book(book_id)
+        payload["title"] = book["title"]
+        for field, book_key in [("author", "author"), ("source_url", "source_url"), ("category", "category"), ("source_type", "source")]:
+            if book.get(book_key):
+                payload.setdefault(field, book[book_key])
+
+
 def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     payloads: List[Dict[str, Any]] = []
     if args.bulk_file:
@@ -237,8 +254,11 @@ def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) ->
             raise ValueError("Highlight text is required")
         payloads.append(payload)
 
+    for p in payloads:
+        _resolve_book_id(client, p)
+
     if args.dry_run:
-        return payloads
+        return [{"dry_run": True, "request_payload": p} for p in payloads]
 
     results = [client.create_highlight(payload) for payload in payloads]
     return results
@@ -251,7 +271,7 @@ def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> D
 def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
     payload = _build_highlight_payload(args, require_text=False)
     if args.dry_run:
-        return payload
+        return {"dry_run": True, "highlight_id": args.highlight_id, "request_payload": payload}
     if not payload:
         raise ValueError("No fields to update")
     return client.update_highlight(args.highlight_id, payload)
@@ -302,9 +322,12 @@ def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -
 def handle_books_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
     params = {}
     author_filter = (args.author or "").lower()
+    title_filter = (args.title or "").lower()
     results = []
     for book in client.list_books(params):
         if author_filter and author_filter not in (book.get("author") or "").lower():
+            continue
+        if title_filter and title_filter not in (book.get("title") or "").lower():
             continue
         results.append(book)
         if args.limit and len(results) >= args.limit:
