@@ -9,7 +9,7 @@ allowed-tools: Bash(uv run *)
 Use this skill to automate work with the Readwise "Original" API that powers highlight exports and metadata management.
 
 ## Quick start
-1. Obtain a personal Readwise token and store it in the `READWISE_TOKEN` secret.
+1. Generate a token from https://readwise.io/access_token and store it in `READWISE_TOKEN`.
 2. Use `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py ...` instead of calling the API directly; it handles retries, pagination, rate-limit surfacing, `--dry-run`, and tagging rules.
 3. Keep requests below the documented rate limit (currently 60 req/min). Batch operations and pause between pages when processing large libraries.
 
@@ -57,9 +57,8 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 
 ## References
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise/references/api.md`: mirrors endpoints, parameters, and payload schemas that evolve faster than this SKILL.
-- Add more references (e.g., sample responses) as flows become concrete.
 
 ## Testing & validation
 - Use the dry-run flag in the client to print payloads instead of sending them when iterating on workflows.
-- Run `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise ${CLAUDE_PLUGIN_ROOT}/readwise_common` before distributing changes to catch syntax issues.
+- Run `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise ${CLAUDE_PLUGIN_ROOT}/readwise_common` before shipping changes to catch syntax issues.
 - For live smoke tests, set `READWISE_TOKEN` and exercise `highlight create --dry-run`, `highlight list`, and `highlights review` against a small limit to verify pagination + rate-limit logging.

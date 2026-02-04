@@ -30,11 +30,10 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py`: CLI covering document create/list/update/pull plus token validation against Reader API v3. Integrates with shared utilities from `${CLAUDE_PLUGIN_ROOT}/readwise_common/`.
-- Extend with additional scripts (queue processors, RSS ingestors) by importing the `ReaderClient` and helpers defined here to keep authentication/retry behavior consistent.
+- Shared helpers live in `${CLAUDE_PLUGIN_ROOT}/readwise_common/` (auth, HTTP retries, tag/location utilities); import from there when extending functionality to keep behavior consistent.
 
 ## References
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/references/api.md`: endpoint matrix, payload notes, and example requests/responses segregated by resource.
-- Expand with playbooks (e.g., ingestion recipes) as the skill matures.
 
 ## Testing & validation
 - Use `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader ${CLAUDE_PLUGIN_ROOT}/readwise_common` before shipping changes.

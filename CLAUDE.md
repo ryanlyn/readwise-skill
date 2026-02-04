@@ -1,4 +1,4 @@
-# Readwise Skill Plugin
+# Readwise Skill
 
 Claude Code marketplace providing the `readwise` plugin for automating Readwise workflows.
 

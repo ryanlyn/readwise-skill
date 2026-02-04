@@ -1,6 +1,6 @@
 {
   "name": "readwise-skill",
-  "description": "Claude Code plugins for Readwise workflows",
+  "description": "Claude Code plugin for Readwise workflows",
   "owner": {
     "name": "ryanlyn"
   },
