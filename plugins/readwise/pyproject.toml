@@ -23,6 +23,9 @@ dev = [
     "ruff>=0.8.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/ryanlyn/readwise-skill"
+
 [tool.ruff]
 target-version = "py311"
 line-length = 120

@@ -1,6 +1,8 @@
 {
   "name": "readwise-skill",
   "description": "Claude Code plugin for Readwise workflows",
+  "homepage": "https://github.com/ryanlyn/readwise-skill",
+  "repository": "https://github.com/ryanlyn/readwise-skill",
   "owner": {
     "name": "ryanlyn"
   },
