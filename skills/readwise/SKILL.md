@@ -19,10 +19,22 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - `... highlight update <id> [--title --note --tags --generated]` – partial updates, respects `--dry-run`.
 - `... highlight show <id>` – fetch highlight details.
 - `... highlight delete <id> [--yes]` – delete a highlight, `--yes` skips confirmation.
-- `... highlights list --book-id 123 --tag focus --updated-after 2026-02-01` – cursor-based listing with optional limit + output format (`--output json|markdown|plain`).
-- `... highlights review --since 2026-02-01` – wraps the daily review/export endpoint and returns JSON you can render to Markdown/CSV upstream.
+- `... highlights list --book-id 123 --tag focus --updated-after 2026-02-01` – cursor-based listing with optional limit.
+- `... highlights review --since 2026-02-01` – wraps the daily review/export endpoint.
 - `... books [--title ...] [--author ...] [--limit N]` – search books by title/author (case-insensitive substring match).
 - `... book <id>` – fetch a single book's metadata.
+
+Default output is human-readable markdown with only key fields. Use `--raw` to get full JSON with all fields.
+
+## Disambiguating book matches
+
+`books --title` performs a case-insensitive substring match and may return multiple results. When multiple books match, pick the correct one by checking `author`, `category`, and `num_highlights` in the output.
+
+## Listing highlights for a book by name
+
+1. Find the book ID: `... books --title "book name"`
+2. If multiple results, identify the correct book by author/category/num_highlights.
+3. List its highlights: `... highlights list --book-id <id>`
 
 ## Adding a highlight to an existing book
 1. Search for the book: `... books --title "when breath becomes air"`
@@ -34,7 +46,7 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - **Generated snippets**: prefer the explicit `--generated` flag rather than manual tagging. The CLI injects `.generated` for discoverability and leaves other metadata untouched.
 - **Highlight text**: supply `--text`, `--text-file`, or pipe content via stdin. The CLI refuses to guess. Bulk imports accept NDJSON rows with `text`, `title`, and `tags`.
 - **Location best practices**: omit `--location` unless you can provide an absolute, client-agnostic reference (page number, character offset). When `--location` is omitted the payload leaves `location` blank so Readwise can reconcile it later. For generated quotes the CLI defaults to `location_type=none`.
-- **Dry runs**: add `--dry-run` to print the exact JSON payload without calling the API. Useful when iterating on agent prompts.
+- **Dry runs**: add `--dry-run` to print the exact payload without calling the API. Dry-run output always shows the full payload (no field filtering).
 
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.

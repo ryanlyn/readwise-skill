@@ -2,7 +2,8 @@
 
 from .auth import get_readwise_token, get_reader_token
 from .http import request_with_backoff, RateLimitInfo
-from .formatting import render_output
+from .formatting import render_output, select_fields
+from .schemas import DISPLAY_FIELDS
 from .utils import (
     build_location_payload,
     build_tags,
@@ -17,6 +18,8 @@ __all__ = [
     "request_with_backoff",
     "RateLimitInfo",
     "render_output",
+    "select_fields",
+    "DISPLAY_FIELDS",
     "build_tags",
     "parse_iso_datetime",
     "parse_tags",

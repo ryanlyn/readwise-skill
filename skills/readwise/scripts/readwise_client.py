@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import requests
 
 from readwise_common import (
+    DISPLAY_FIELDS,
     build_location_payload,
     build_tags,
     get_readwise_token,
@@ -18,6 +19,7 @@ from readwise_common import (
     render_output,
     request_with_backoff,
     resolve_highlight_text,
+    select_fields,
 )
 from readwise_common.utils import load_bulk_payloads
 
@@ -131,7 +133,7 @@ def _add_common_create_args(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interact with the Readwise Original API")
     parser.add_argument("--token", help="Override READWISE_TOKEN env var")
-    parser.add_argument("--output", choices=["json", "markdown", "plain"], default="json")
+    parser.add_argument("--raw", action="store_true", help="Output full JSON (all fields)")
     parser.add_argument("--dry-run", action="store_true", help="Print payloads without calling the API")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -343,6 +345,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     token = get_readwise_token(args.token).value
     client = ReadwiseClient(token, dry_run=args.dry_run)
 
+    entity = "highlight"
     if args.command == "highlight":
         if args.highlight_command == "create":
             result = handle_highlight_create(client, args)
@@ -363,12 +366,21 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             parser.error("Unknown highlights subcommand")
     elif args.command == "books":
         result = handle_books_list(client, args)
+        entity = "book"
     elif args.command == "book":
         result = handle_book_show(client, args)
+        entity = "book"
     else:
         parser.error("Unknown command")
 
-    print(render_output(result, args.output))
+    if args.raw:
+        print(render_output(result, "json"))
+    else:
+        if not args.dry_run:
+            fields = DISPLAY_FIELDS.get(entity)
+            if fields:
+                result = select_fields(result, fields)
+        print(render_output(result, "markdown"))
     return 0
 
 

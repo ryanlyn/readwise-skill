@@ -40,6 +40,15 @@ def _render_plain(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+def select_fields(data: Any, fields: list[str]) -> Any:
+    """Project dicts to only the specified fields."""
+    if isinstance(data, list):
+        return [select_fields(item, fields) for item in data]
+    if isinstance(data, dict):
+        return {k: v for k, v in data.items() if k in fields}
+    return data
+
+
 def render_output(data: Any, fmt: str) -> str:
     fmt = fmt.lower()
     if fmt == "json":

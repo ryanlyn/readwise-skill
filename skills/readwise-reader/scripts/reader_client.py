@@ -9,12 +9,14 @@ from typing import Any, Dict, Iterable, List, Optional
 import requests
 
 from readwise_common import (
+    DISPLAY_FIELDS,
     build_tags,
     get_reader_token,
     parse_iso_datetime,
     parse_tags,
     render_output,
     request_with_backoff,
+    select_fields,
 )
 from readwise_common.http import APIRequestError
 
@@ -110,7 +112,7 @@ class ReaderClient:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interact with Readwise Reader API")
     parser.add_argument("--token", help="Override READWISE_TOKEN")
-    parser.add_argument("--output", choices=["json", "markdown", "plain"], default="json")
+    parser.add_argument("--raw", action="store_true", help="Output full JSON (all fields)")
     parser.add_argument("--dry-run", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -239,6 +241,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     token = get_reader_token(args.token).value
     client = ReaderClient(token, dry_run=args.dry_run)
 
+    entity = "document"
     if args.command == "docs":
         if args.docs_command == "create":
             result = handle_create(client, args)
@@ -251,6 +254,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         else:
             parser.error("Unknown docs subcommand")
     elif args.command == "auth":
+        entity = ""
         if args.auth_command == "validate":
             result = handle_validate(client)
         else:
@@ -258,7 +262,14 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     else:
         parser.error("Unknown command")
 
-    print(render_output(result, args.output))
+    if args.raw:
+        print(render_output(result, "json"))
+    else:
+        if not args.dry_run:
+            fields = DISPLAY_FIELDS.get(entity)
+            if fields:
+                result = select_fields(result, fields)
+        print(render_output(result, "markdown"))
     return 0
 
 

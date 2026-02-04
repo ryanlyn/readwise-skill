@@ -17,14 +17,16 @@ Use this skill to script workflows against the Readwise Reader product (saved ar
 - `python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Reader API v3 does not support uploading local files directly.
 - `... docs list --category new --tag deep-work --limit 25` – paginated document listing with filters on id/category/tag/location/update time.
 - `... docs update <id> [--state archive --tags "deep,focus" --title ...]` – patch metadata/state (`new`, `later`, `archive`). Supports `--dry-run`.
-- `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows; combine with `--output markdown` for conversational summaries.
+- `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows.
 - `... auth validate` – confirms your token works by hitting the `/api/v2/auth/` endpoint.
+
+Default output is human-readable markdown with only key fields. Use `--raw` to get full JSON with all fields.
 
 ## Data guidance
 - **Generated entries**: set `--generated` when saving synthetic journal entries or agent summaries. The CLI appends `.generated` to tags (and labels, when provided) so they are searchable in Reader.
 - **Source inputs**: prefer `--url` when the content exists online. Use `--content` for local snippets; Reader API v3 does not expose the legacy upload flow, so convert PDFs to shareable URLs before saving.
 - **Metadata**: Reader tolerates arbitrary tags/labels, so lean on them for downstream automations (e.g., `.journal`, `.deepread`). Avoid overloading `summary` with custom formats—store structured metadata in labels/tags instead.
-- **Dry runs**: `--dry-run` prints the JSON payload without hitting the API. Use this before bulk imports or destructive updates.
+- **Dry runs**: `--dry-run` prints the payload without hitting the API. Dry-run output always shows the full payload (no field filtering).
 
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py`: CLI covering document create/list/update/pull plus token validation against Reader API v3. Integrates with shared utilities from `${CLAUDE_PLUGIN_ROOT}/readwise_common/`.

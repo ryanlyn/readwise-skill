@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from io import StringIO
@@ -7,6 +8,8 @@ from typing import Dict, Iterable, List
 
 import pytest
 
+from readwise_common.formatting import select_fields
+from readwise_common.schemas import DISPLAY_FIELDS
 from skills.readwise.scripts.readwise_client import ReadwiseClient, main as readwise_main
 
 
@@ -147,3 +150,47 @@ def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys:
     highlight_id = created["id"]
     readwise_main(["--dry-run", "highlight", "delete", str(highlight_id), "--yes"])
     assert readwise_client.get_highlight(highlight_id)["id"] == highlight_id
+
+
+class TestSelectFields:
+    def test_dict(self) -> None:
+        data = {"id": 1, "text": "hello", "extra": "gone"}
+        assert select_fields(data, ["id", "text"]) == {"id": 1, "text": "hello"}
+
+    def test_list_of_dicts(self) -> None:
+        data = [{"id": 1, "a": "x"}, {"id": 2, "a": "y"}]
+        assert select_fields(data, ["id"]) == [{"id": 1}, {"id": 2}]
+
+    def test_passthrough_non_dict(self) -> None:
+        assert select_fields("plain string", ["id"]) == "plain string"
+        assert select_fields(42, ["id"]) == 42
+
+    def test_missing_fields_ignored(self) -> None:
+        data = {"id": 1}
+        assert select_fields(data, ["id", "text", "note"]) == {"id": 1}
+
+
+def test_default_output_is_trimmed_markdown(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["books", "--title", "meditations"])
+    captured = capsys.readouterr()
+    assert "Meditations" in captured.out
+    assert "num_highlights" in captured.out
+    assert "cover_image_url" not in captured.out
+
+
+def test_raw_flag_outputs_full_json(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["--raw", "books", "--title", "meditations"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    book = data[0]
+    assert book["title"] == "Meditations"
+    assert "cover_image_url" in book
+
+
+def test_dry_run_skips_field_filtering(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["--dry-run", "highlight", "create", "--text", "test", "--title", "DryBook"])
+    captured = capsys.readouterr()
+    assert "dry_run" in captured.out
+    assert "request_payload" in captured.out
