@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import date, datetime, timezone
+from collections.abc import Iterable, Sequence
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Iterable, List, Sequence
 
 
-def parse_tags(raw: str | None) -> List[str]:
+def parse_tags(raw: str | None) -> list[str]:
     if not raw:
         return []
-    tags: List[str] = []
+    tags: list[str] = []
     for part in raw.split(","):
         tag = part.strip()
         if tag and tag not in tags:
@@ -20,7 +20,7 @@ def parse_tags(raw: str | None) -> List[str]:
     return tags
 
 
-def build_tags(existing: Sequence[str] | None, generated: bool) -> List[str]:
+def build_tags(existing: Sequence[str] | None, generated: bool) -> list[str]:
     tags = list(existing) if existing else []
     if generated and ".generated" not in tags:
         tags.append(".generated")
@@ -91,7 +91,7 @@ def parse_iso_datetime(value: str) -> str:
             parsed_date = date.fromisoformat(normalized)
         except ValueError as exc:
             raise ValueError(f"Invalid date/time: {value}") from exc
-        parsed = datetime.combine(parsed_date, datetime.min.time(), tzinfo=timezone.utc)
+        parsed = datetime.combine(parsed_date, datetime.min.time(), tzinfo=UTC)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")

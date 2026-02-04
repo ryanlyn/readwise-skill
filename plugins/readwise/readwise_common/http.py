@@ -82,9 +82,9 @@ def request_with_backoff(
                 try:
                     sleep_for = float(retry_after)
                 except ValueError:
-                    sleep_for = BACKOFF_BASE ** attempt
+                    sleep_for = BACKOFF_BASE**attempt
             else:
-                sleep_for = BACKOFF_BASE ** attempt
+                sleep_for = BACKOFF_BASE**attempt
             sleep_for += random.uniform(0, JITTER)
             rate_notice = _format_rate_limit_notice(response.headers)
             if rate_notice:
@@ -97,7 +97,7 @@ def request_with_backoff(
             last_error = exc
             if attempt == max_attempts:
                 break
-            time.sleep(BACKOFF_BASE ** attempt + random.uniform(0, JITTER))
+            time.sleep(BACKOFF_BASE**attempt + random.uniform(0, JITTER))
     if last_error is not None:
         raise APIRequestError(str(last_error))
     raise APIRequestError("Request failed after retries")

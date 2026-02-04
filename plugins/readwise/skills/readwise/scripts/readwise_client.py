@@ -73,8 +73,7 @@ class ReadwiseClient:
             else:
                 response = self._request("get", path, params=scoped)
             payload = response.json()
-            for item in payload.get("results", []):
-                yield item
+            yield from payload.get("results", [])
             cursor = payload.get("nextPageCursor")
             next_url = payload.get("next")
             if not cursor and not next_url:
@@ -232,7 +231,13 @@ def _resolve_book_id(client: ReadwiseClient, payload: dict[str, Any]) -> None:
     if book_id and not payload.get("title"):
         book = client.get_book(book_id)
         payload["title"] = book.title
-        for field, book_attr in [("author", "author"), ("source_url", "source_url"), ("category", "category"), ("source_type", "source")]:
+        field_map = [
+            ("author", "author"),
+            ("source_url", "source_url"),
+            ("category", "category"),
+            ("source_type", "source"),
+        ]
+        for field, book_attr in field_map:
             value = getattr(book, book_attr, None)
             if value:
                 payload.setdefault(field, value)
@@ -288,10 +293,19 @@ def highlight_create(
             payloads.append(_normalize_bulk_payload(entry, generated))
     else:
         payload = _build_highlight_payload(
-            text=text, text_file=text_file, title=title, author=author,
-            source_url=source_url, book_id=book_id, category=category, note=note,
-            tags_raw=tags, location=location, location_type=location_type,
-            generated=generated, require_text=True,
+            text=text,
+            text_file=text_file,
+            title=title,
+            author=author,
+            source_url=source_url,
+            book_id=book_id,
+            category=category,
+            note=note,
+            tags_raw=tags,
+            location=location,
+            location_type=location_type,
+            generated=generated,
+            require_text=True,
         )
         if "text" not in payload:
             raise typer.BadParameter("Highlight text is required")
@@ -333,10 +347,20 @@ def highlight_update(
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     payload = _build_highlight_payload(
-        text=text, text_file=text_file, title=title, author=author,
-        source_url=source_url, book_id=book_id, category=category, note=note,
-        tags_raw=tags, location=location, location_type=location_type,
-        generated=generated, require_text=False, inline_tags=False,
+        text=text,
+        text_file=text_file,
+        title=title,
+        author=author,
+        source_url=source_url,
+        book_id=book_id,
+        category=category,
+        note=note,
+        tags_raw=tags,
+        location=location,
+        location_type=location_type,
+        generated=generated,
+        require_text=False,
+        inline_tags=False,
     )
     tag_names = payload.pop("_tags", [])
     if not payload and not tag_names:
@@ -392,7 +416,10 @@ def highlights_list(
         if limit and idx >= limit:
             break
     print_result(
-        results, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"],
+        results,
+        fields=HIGHLIGHT_FIELDS,
+        raw=ctx.obj["raw"],
+        dry_run=ctx.obj["dry_run"],
         renderer=render_highlights,
     )
 

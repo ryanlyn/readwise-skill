@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from flask import Flask, jsonify, request
-
 
 BASE_DIR = Path(__file__).resolve().parent
 FIXTURES_DIR = BASE_DIR / "fixtures"
@@ -22,7 +21,7 @@ def load_fixture(name: str) -> Any:
         return json.load(handle)
 
 
-def parse_iso_datetime(value: str) -> Optional[datetime]:
+def parse_iso_datetime(value: str) -> datetime | None:
     if not value:
         return None
     try:
@@ -32,10 +31,10 @@ def parse_iso_datetime(value: str) -> Optional[datetime]:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
-def require_auth() -> Optional[Tuple[Dict[str, str], int]]:
+def require_auth() -> tuple[dict[str, str], int] | None:
     token = request.headers.get("Authorization", "")
     if not token.startswith("Token "):
         return {"detail": "Unauthorized"}, 401
@@ -58,7 +57,7 @@ def _parse_inline_tags(note: str) -> tuple[list[str], str]:
     return [], note
 
 
-def _parse_cursor(value: Optional[str]) -> int:
+def _parse_cursor(value: str | None) -> int:
     if not value:
         return 0
     try:
@@ -69,24 +68,21 @@ def _parse_cursor(value: Optional[str]) -> int:
 
 @dataclass
 class Store:
-    documents: Dict[str, Dict[str, Any]]
-    document_tags: List[Dict[str, str]]
-    highlights: Dict[int, Dict[str, Any]]
-    books: Dict[int, Dict[str, Any]]
-    highlight_tags: Dict[int, List[Dict[str, Any]]]
+    documents: dict[str, dict[str, Any]]
+    document_tags: list[dict[str, str]]
+    highlights: dict[int, dict[str, Any]]
+    books: dict[int, dict[str, Any]]
+    highlight_tags: dict[int, list[dict[str, Any]]]
     highlight_counter: int
     tag_counter: int
 
     @classmethod
-    def from_fixtures(cls) -> "Store":
+    def from_fixtures(cls) -> Store:
         documents = {doc["id"]: doc for doc in load_fixture("reader_documents.json")}
         document_tags = load_fixture("reader_tags.json")
         highlights = {highlight["id"]: highlight for highlight in load_fixture("highlights.json")}
         books = {book["id"]: book for book in load_fixture("books.json")}
-        highlight_tags = {
-            int(highlight_id): tags
-            for highlight_id, tags in load_fixture("highlight_tags.json").items()
-        }
+        highlight_tags = {int(highlight_id): tags for highlight_id, tags in load_fixture("highlight_tags.json").items()}
         highlight_counter = max(highlights.keys(), default=0) + 1
         tag_counter = 100000 + sum(len(tags) for tags in highlight_tags.values())
         return cls(
@@ -184,7 +180,11 @@ def reader_list() -> Any:
     if updated_after:
         cutoff = parse_iso_datetime(updated_after)
         if cutoff:
-            docs = [doc for doc in docs if parse_iso_datetime(doc.get("updated_at")) and parse_iso_datetime(doc.get("updated_at")) > cutoff]
+            docs = [
+                doc
+                for doc in docs
+                if parse_iso_datetime(doc.get("updated_at")) and parse_iso_datetime(doc.get("updated_at")) > cutoff
+            ]
 
     location = request.args.get("location")
     if location:
@@ -199,11 +199,7 @@ def reader_list() -> Any:
         if tags == [""]:
             docs = [doc for doc in docs if not doc.get("tags")]
         else:
-            docs = [
-                doc
-                for doc in docs
-                if all(tag in (doc.get("tags") or {}) for tag in tags)
-            ]
+            docs = [doc for doc in docs if all(tag in (doc.get("tags") or {}) for tag in tags)]
 
     limit = int(request.args.get("limit", 100))
     limit = max(1, min(limit, 100))
@@ -310,7 +306,7 @@ def reader_tags() -> Any:
     return jsonify({"count": len(tags), "nextPageCursor": next_cursor, "results": results})
 
 
-def paginate(items: List[Any], page: int, page_size: int) -> Tuple[List[Any], Optional[str]]:
+def paginate(items: list[Any], page: int, page_size: int) -> tuple[list[Any], str | None]:
     start = (page - 1) * page_size
     end = start + page_size
     next_page = None
@@ -353,7 +349,7 @@ def highlights_list() -> Any:
     def _cursor_to_page(offset: int) -> int:
         return offset // page_size + 1
 
-    def _cursor_url(offset: Optional[str]) -> Optional[str]:
+    def _cursor_url(offset: str | None) -> str | None:
         if offset is None:
             return None
         try:
@@ -385,7 +381,7 @@ def highlights_export() -> Any:
     highlights = list(STORE.highlights.values())
     updated_after = parse_iso_datetime(request.args.get("updatedAfter", ""))
     updated_before = parse_iso_datetime(request.args.get("updatedBefore", ""))
-    filtered: List[Dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
     for highlight in highlights:
         timestamp = parse_iso_datetime(highlight.get("highlighted_at") or highlight.get("updated") or "")
         if not timestamp:
@@ -395,7 +391,7 @@ def highlights_export() -> Any:
         if updated_before and timestamp >= updated_before:
             continue
         filtered.append(highlight)
-    filtered.sort(key=lambda h: parse_iso_datetime(h.get("highlighted_at") or "") or datetime.min.replace(tzinfo=timezone.utc))
+    filtered.sort(key=lambda h: parse_iso_datetime(h.get("highlighted_at") or "") or datetime.min.replace(tzinfo=UTC))
     limit = int(request.args.get("limit", 50))
     limit = max(1, min(limit, 1000))
     page_results = filtered[:limit]
@@ -532,7 +528,7 @@ def books_list() -> Any:
     def _cursor_to_page(offset: int) -> int:
         return offset // page_size + 1
 
-    def _cursor_url(offset: Optional[str]) -> Optional[str]:
+    def _cursor_url(offset: str | None) -> str | None:
         if offset is None:
             return None
         try:
@@ -587,7 +583,9 @@ def highlight_tags_list(highlight_id: int) -> Any:
         {
             "count": len(tags),
             "next": next_url,
-            "previous": None if page == 1 else f"http://localhost:3000/api/v2/highlights/{highlight_id}/tags?page={page - 1}&page_size={page_size}",
+            "previous": None
+            if page == 1
+            else f"http://localhost:3000/api/v2/highlights/{highlight_id}/tags?page={page - 1}&page_size={page_size}",
             "results": page_results,
         }
     )

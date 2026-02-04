@@ -20,15 +20,15 @@ def _load_reader_module():
     return module
 
 
-_reader_module = _load_reader_module()
-ReaderClient = _reader_module.ReaderClient
-reader_main = _reader_module.main
-
-from readwise_common.models import (
+from readwise_common.models import (  # noqa: E402
     DocumentCreatePayload,
     DocumentListParams,
     DocumentUpdatePayload,
 )
+
+_reader_module = _load_reader_module()
+ReaderClient = _reader_module.ReaderClient
+reader_main = _reader_module.main
 
 
 @pytest.fixture
@@ -46,15 +46,11 @@ def test_list_documents_by_location(reader_client: ReaderClient) -> None:
 
 def test_reader_document_crud_flow(reader_client: ReaderClient) -> None:
     unique_url = f"https://example.com/articles/{uuid4().hex}"
-    created = reader_client.create_document(
-        DocumentCreatePayload(url=unique_url, title="Stub Doc", tags=["focus"])
-    )
+    created = reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Stub Doc", tags=["focus"]))
     doc_id = created.id
     assert doc_id
 
-    reader_client.update_document(
-        doc_id, DocumentUpdatePayload(location="archive", tags=["integration-test"])
-    )
+    reader_client.update_document(doc_id, DocumentUpdatePayload(location="archive", tags=["integration-test"]))
     fetched = list(reader_client.list_documents(DocumentListParams(document_id=doc_id)))
     assert fetched, "Document should be retrievable after update"
     document = fetched[0]
@@ -69,9 +65,7 @@ def test_reader_list_paginates(reader_client: ReaderClient) -> None:
     created_ids = []
     for _ in range(3):
         unique_url = f"https://example.com/docs/{uuid4().hex}"
-        created = reader_client.create_document(
-            DocumentCreatePayload(url=unique_url, title="Paginated Doc")
-        )
+        created = reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Paginated Doc"))
         created_ids.append(created.id)
 
     docs = list(reader_client.list_documents(DocumentListParams()))
@@ -86,14 +80,10 @@ def test_reader_list_filters_by_tag(reader_client: ReaderClient) -> None:
 
 def test_reader_update_labels_and_state(reader_client: ReaderClient) -> None:
     unique_url = f"https://example.com/update/{uuid4().hex}"
-    created = reader_client.create_document(
-        DocumentCreatePayload(url=unique_url, title="Label Doc")
-    )
+    created = reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Label Doc"))
     doc_id = created.id
 
-    reader_client.update_document(
-        doc_id, DocumentUpdatePayload(location="later", labels=["priority"])
-    )
+    reader_client.update_document(doc_id, DocumentUpdatePayload(location="later", labels=["priority"]))
     fetched = list(reader_client.list_documents(DocumentListParams(document_id=doc_id)))
     assert fetched
     doc = fetched[0]

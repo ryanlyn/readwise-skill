@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-
 # ---------------------------------------------------------------------------
 # Request models (strict — no extra fields)
 # ---------------------------------------------------------------------------

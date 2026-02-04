@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterable
 from datetime import datetime
 
 import pytest
@@ -15,7 +14,8 @@ from readwise_common.models import (
     HighlightListParams,
     HighlightUpdatePayload,
 )
-from skills.readwise.scripts.readwise_client import ReadwiseClient, main as readwise_main
+from skills.readwise.scripts.readwise_client import ReadwiseClient
+from skills.readwise.scripts.readwise_client import main as readwise_main
 
 
 @pytest.fixture
@@ -45,9 +45,7 @@ def test_highlight_crud_flow(readwise_client: ReadwiseClient) -> None:
     assert created.text == payload.text
     assert created.color == "yellow"
 
-    updated = readwise_client.update_highlight(
-        highlight_id, HighlightUpdatePayload(color="pink", note="updated")
-    )
+    updated = readwise_client.update_highlight(highlight_id, HighlightUpdatePayload(color="pink", note="updated"))
     assert updated.color == "pink"
     assert updated.note == "updated"
 
@@ -160,6 +158,7 @@ def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys:
 
 def test_highlight_create_with_tags(readwise_client: ReadwiseClient) -> None:
     from readwise_common.utils import format_inline_tags
+
     note_with_tags = format_inline_tags(["focus", "review"])
     payload = HighlightCreatePayload(
         text="Tagged highlight",
@@ -174,12 +173,18 @@ def test_highlight_create_with_tags(readwise_client: ReadwiseClient) -> None:
 
 
 def test_highlight_create_generated_tags(capsys: pytest.CaptureFixture[str]) -> None:
-    readwise_main([
-        "--raw", "highlight", "create",
-        "--text", "Generated highlight",
-        "--title", "Gen Test",
-        "--generated",
-    ])
+    readwise_main(
+        [
+            "--raw",
+            "highlight",
+            "create",
+            "--text",
+            "Generated highlight",
+            "--title",
+            "Gen Test",
+            "--generated",
+        ]
+    )
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert isinstance(data, list) and len(data) == 1
@@ -189,6 +194,7 @@ def test_highlight_create_generated_tags(capsys: pytest.CaptureFixture[str]) -> 
 
 def test_highlight_create_tags_and_note(readwise_client: ReadwiseClient) -> None:
     from readwise_common.utils import format_inline_tags
+
     note_with_tags = format_inline_tags(["focus", ".generated"], "My personal note")
     payload = HighlightCreatePayload(
         text="Highlight with note and tags",
@@ -204,12 +210,19 @@ def test_highlight_create_tags_and_note(readwise_client: ReadwiseClient) -> None
 
 
 def test_highlight_create_with_tags_via_cli(capsys: pytest.CaptureFixture[str]) -> None:
-    readwise_main([
-        "--raw", "highlight", "create",
-        "--text", "CLI tagged",
-        "--title", "CLI Tag Book",
-        "--tags", "alpha,beta",
-    ])
+    readwise_main(
+        [
+            "--raw",
+            "highlight",
+            "create",
+            "--text",
+            "CLI tagged",
+            "--title",
+            "CLI Tag Book",
+            "--tags",
+            "alpha,beta",
+        ]
+    )
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert isinstance(data, list) and len(data) == 1
@@ -219,12 +232,19 @@ def test_highlight_create_with_tags_via_cli(capsys: pytest.CaptureFixture[str]) 
 
 
 def test_dry_run_create_with_tags(capsys: pytest.CaptureFixture[str]) -> None:
-    readwise_main([
-        "--dry-run", "highlight", "create",
-        "--text", "Dry run tagged",
-        "--title", "DryTagBook",
-        "--tags", "alpha,beta",
-    ])
+    readwise_main(
+        [
+            "--dry-run",
+            "highlight",
+            "create",
+            "--text",
+            "Dry run tagged",
+            "--title",
+            "DryTagBook",
+            "--tags",
+            "alpha,beta",
+        ]
+    )
     captured = capsys.readouterr()
     assert "dry_run" in captured.out
     assert ".alpha" in captured.out
@@ -245,19 +265,23 @@ def test_highlight_update_with_tags(readwise_client: ReadwiseClient) -> None:
 class TestFormatInlineTags:
     def test_basic(self) -> None:
         from readwise_common.utils import format_inline_tags
+
         assert format_inline_tags(["focus", "review"]) == ".focus .review"
 
     def test_with_note(self) -> None:
         from readwise_common.utils import format_inline_tags
+
         result = format_inline_tags(["focus"], "My note")
         assert result == ".focus\nMy note"
 
     def test_preserves_dot_prefix(self) -> None:
         from readwise_common.utils import format_inline_tags
+
         assert format_inline_tags([".generated", "focus"]) == ".generated .focus"
 
     def test_empty(self) -> None:
         from readwise_common.utils import format_inline_tags
+
         assert format_inline_tags([]) == ""
         assert format_inline_tags([], "note") == "note"
 
