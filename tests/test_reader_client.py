@@ -24,6 +24,12 @@ _reader_module = _load_reader_module()
 ReaderClient = _reader_module.ReaderClient
 reader_main = _reader_module.main
 
+from readwise_common.models import (
+    DocumentCreatePayload,
+    DocumentListParams,
+    DocumentUpdatePayload,
+)
+
 
 @pytest.fixture
 def reader_client() -> ReaderClient:
@@ -33,56 +39,67 @@ def reader_client() -> ReaderClient:
 
 
 def test_list_documents_by_location(reader_client: ReaderClient) -> None:
-    docs = list(reader_client.list_documents({"location": "new"}))
+    docs = list(reader_client.list_documents(DocumentListParams(location="new")))
     assert docs, "Expected at least one document in 'new' location"
-    assert all(doc["location"] == "new" for doc in docs)
+    assert all(doc.location == "new" for doc in docs)
 
 
 def test_reader_document_crud_flow(reader_client: ReaderClient) -> None:
     unique_url = f"https://example.com/articles/{uuid4().hex}"
-    created = reader_client.create_document({"url": unique_url, "title": "Stub Doc", "tags": ["focus"]})
-    doc_id = created["id"]
+    created = reader_client.create_document(
+        DocumentCreatePayload(url=unique_url, title="Stub Doc", tags=["focus"])
+    )
+    doc_id = created.id
     assert doc_id
 
-    reader_client.update_document(doc_id, {"location": "archive", "tags": ["integration-test"]})
-    fetched = list(reader_client.list_documents({"id": doc_id}))
+    reader_client.update_document(
+        doc_id, DocumentUpdatePayload(location="archive", tags=["integration-test"])
+    )
+    fetched = list(reader_client.list_documents(DocumentListParams(document_id=doc_id)))
     assert fetched, "Document should be retrievable after update"
     document = fetched[0]
-    assert document["location"] == "archive"
-    assert "integration-test" in (document.get("tags") or {})
+    assert document.location == "archive"
+    assert "integration-test" in (document.tags or {})
 
     reader_client.delete_document(doc_id)
-    assert list(reader_client.list_documents({"id": doc_id})) == []
+    assert list(reader_client.list_documents(DocumentListParams(document_id=doc_id))) == []
 
 
 def test_reader_list_paginates(reader_client: ReaderClient) -> None:
     created_ids = []
     for _ in range(3):
         unique_url = f"https://example.com/docs/{uuid4().hex}"
-        created = reader_client.create_document({"url": unique_url, "title": "Paginated Doc"})
-        created_ids.append(created["id"])
+        created = reader_client.create_document(
+            DocumentCreatePayload(url=unique_url, title="Paginated Doc")
+        )
+        created_ids.append(created.id)
 
-    docs = list(reader_client.list_documents({"limit": 1}))
-    assert set(created_ids).issubset({doc["id"] for doc in docs})
+    docs = list(reader_client.list_documents(DocumentListParams()))
+    assert set(created_ids).issubset({doc.id for doc in docs})
 
 
 def test_reader_list_filters_by_tag(reader_client: ReaderClient) -> None:
-    docs = list(reader_client.list_documents({"tag": "first-tag"}))
+    docs = list(reader_client.list_documents(DocumentListParams(tag="first-tag")))
     assert docs
-    assert all("first-tag" in (doc.get("tags") or {}) for doc in docs)
+    assert all("first-tag" in (doc.tags or {}) for doc in docs)
 
 
 def test_reader_update_labels_and_state(reader_client: ReaderClient) -> None:
     unique_url = f"https://example.com/update/{uuid4().hex}"
-    created = reader_client.create_document({"url": unique_url, "title": "Label Doc"})
-    doc_id = created["id"]
+    created = reader_client.create_document(
+        DocumentCreatePayload(url=unique_url, title="Label Doc")
+    )
+    doc_id = created.id
 
-    reader_client.update_document(doc_id, {"location": "later", "labels": ["priority"]})
-    fetched = list(reader_client.list_documents({"id": doc_id}))
+    reader_client.update_document(
+        doc_id, DocumentUpdatePayload(location="later", labels=["priority"])
+    )
+    fetched = list(reader_client.list_documents(DocumentListParams(document_id=doc_id)))
     assert fetched
     doc = fetched[0]
-    assert doc["location"] == "later"
-    assert "priority" in (doc.get("labels") or [])
+    assert doc.location == "later"
+    labels = getattr(doc, "labels", None) or []
+    assert "priority" in labels
 
 
 def test_reader_validate_token(reader_client: ReaderClient) -> None:
@@ -99,7 +116,7 @@ def test_reader_dry_run_create_outputs_once(capsys: pytest.CaptureFixture[str]) 
 
 def test_reader_pull_accepts_date_only(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/pull/{uuid4().hex}"
-    reader_client.create_document({"url": unique_url, "title": "Pull Test"})
+    reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Pull Test"))
     reader_main(["docs", "pull", "--since", "2020-01-01", "--limit", "5"])
     captured = capsys.readouterr()
     assert "Pull Test" in captured.out
@@ -107,7 +124,7 @@ def test_reader_pull_accepts_date_only(reader_client: ReaderClient, capsys: pyte
 
 def test_reader_list_accepts_date_only(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/listdate/{uuid4().hex}"
-    reader_client.create_document({"url": unique_url, "title": "ListDate Test"})
+    reader_client.create_document(DocumentCreatePayload(url=unique_url, title="ListDate Test"))
     reader_main(["docs", "list", "--updated-after", "2020-01-01", "--limit", "5"])
     captured = capsys.readouterr()
     assert "ListDate Test" in captured.out
@@ -115,7 +132,7 @@ def test_reader_list_accepts_date_only(reader_client: ReaderClient, capsys: pyte
 
 def test_reader_default_output_is_trimmed(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/trimmed/{uuid4().hex}"
-    reader_client.create_document({"url": unique_url, "title": "Trimmed Doc"})
+    reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Trimmed Doc"))
     reader_main(["docs", "list", "--limit", "5"])
     captured = capsys.readouterr()
     assert "Trimmed Doc" in captured.out
@@ -124,7 +141,7 @@ def test_reader_default_output_is_trimmed(reader_client: ReaderClient, capsys: p
 
 def test_reader_raw_flag_outputs_full_json(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/rawtest/{uuid4().hex}"
-    reader_client.create_document({"url": unique_url, "title": "Raw Doc"})
+    reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Raw Doc"))
     reader_main(["--raw", "docs", "list", "--limit", "5"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
