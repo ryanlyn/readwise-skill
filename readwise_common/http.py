@@ -6,7 +6,6 @@ import random
 import sys
 import time
 from dataclasses import dataclass
-from typing import Iterable, Optional
 
 import requests
 
@@ -19,13 +18,13 @@ JITTER = 0.25
 
 @dataclass
 class RateLimitInfo:
-    limit: Optional[int]
-    remaining: Optional[int]
-    reset: Optional[int]
+    limit: int | None
+    remaining: int | None
+    reset: int | None
 
     @classmethod
-    def from_headers(cls, headers: requests.structures.CaseInsensitiveDict[str]) -> "RateLimitInfo":
-        def _to_int(value: Optional[str]) -> Optional[int]:
+    def from_headers(cls, headers: requests.structures.CaseInsensitiveDict[str]) -> RateLimitInfo:
+        def _to_int(value: str | None) -> int | None:
             if value is None:
                 return None
             try:
@@ -70,7 +69,7 @@ def request_with_backoff(
     timeout: int = DEFAULT_TIMEOUT,
     **kwargs,
 ) -> requests.Response:
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
             response = session.request(method.upper(), url, timeout=timeout, **kwargs)

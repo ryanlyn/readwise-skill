@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import argparse
 import os
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any
 
 import requests
 
 from readwise_common import (
-    DISPLAY_FIELDS,
     build_tags,
     get_reader_token,
     parse_iso_datetime,
     parse_tags,
-    render_output,
+    print_result,
     request_with_backoff,
-    select_fields,
 )
 from readwise_common.http import APIRequestError
 
@@ -25,8 +24,8 @@ AUTH_URL = "https://readwise.io/api/v2/auth/"
 USER_AGENT = "readwise-reader-skill/0.1"
 
 
-def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {}
+def _load_document_body(args: argparse.Namespace) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
     if args.url:
         payload["url"] = args.url
     if args.content:
@@ -48,11 +47,10 @@ def _load_document_body(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 class ReaderClient:
-    def __init__(self, token: str, *, base_url: Optional[str] = None, auth_url: Optional[str] = None, dry_run: bool = False):
+    def __init__(self, token: str, *, base_url: str | None = None, auth_url: str | None = None, dry_run: bool = False):
         resolved = base_url or os.getenv("READWISE_READER_API_BASE_URL") or DEFAULT_BASE_URL
         self.base_url = resolved.rstrip("/")
-        resolved_auth = auth_url or os.getenv("READWISE_READER_AUTH_URL") or AUTH_URL
-        self.auth_url = resolved_auth
+        self.auth_url = auth_url or os.getenv("READWISE_READER_AUTH_URL") or AUTH_URL
         self.dry_run = dry_run
         self.session = requests.Session()
         self.session.headers.update(
@@ -66,7 +64,7 @@ class ReaderClient:
         url = f"{self.base_url}{path}"
         return request_with_backoff(self.session, method, url, **kwargs)
 
-    def create_document(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def create_document(self, payload: dict[str, Any]) -> dict[str, Any]:
         payload = dict(payload)
         if "file_path" in payload:
             raise ValueError("File uploads are not supported by the Reader API v3 endpoints.")
@@ -75,8 +73,8 @@ class ReaderClient:
         response = self._request("post", "/save/", json=payload)
         return response.json()
 
-    def list_documents(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
-        cursor: Optional[str] = None
+    def list_documents(self, params: dict[str, Any]) -> Iterable[dict[str, Any]]:
+        cursor: str | None = None
         params = dict(params)
         while True:
             scoped = dict(params)
@@ -90,13 +88,13 @@ class ReaderClient:
             if not cursor:
                 break
 
-    def update_document(self, document_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def update_document(self, document_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if self.dry_run:
             return {"dry_run": True, "document_id": document_id, "request_payload": payload}
         response = self._request("patch", f"/update/{document_id}/", json=payload)
         return response.json()
 
-    def delete_document(self, document_id: str) -> Dict[str, Any]:
+    def delete_document(self, document_id: str) -> dict[str, Any]:
         if self.dry_run:
             return {"dry_run": True, "document_id": document_id, "action": "delete"}
         self._request("delete", f"/delete/{document_id}/")
@@ -159,14 +157,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def handle_create(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
+def handle_create(client: ReaderClient, args: argparse.Namespace) -> dict[str, Any]:
     payload = _load_document_body(args)
     if not payload.get("url") and not payload.get("html") and not payload.get("source_url"):
         raise ValueError("Provide --url or --content")
     return client.create_document(payload)
 
 
-def handle_list(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
+def handle_list(client: ReaderClient, args: argparse.Namespace) -> list[dict[str, Any]]:
     params = {}
     if args.document_id:
         params["id"] = args.document_id
@@ -186,8 +184,8 @@ def handle_list(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str
     return docs
 
 
-def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {}
+def handle_update(client: ReaderClient, args: argparse.Namespace) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
     for field in ("title", "summary", "category"):
         value = getattr(args, field, None)
         if value:
@@ -203,7 +201,7 @@ def handle_update(client: ReaderClient, args: argparse.Namespace) -> Dict[str, A
     return client.update_document(args.document_id, payload)
 
 
-def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
+def handle_pull(client: ReaderClient, args: argparse.Namespace) -> list[dict[str, Any]]:
     params = {}
     if args.location:
         params["location"] = args.location
@@ -217,7 +215,7 @@ def handle_pull(client: ReaderClient, args: argparse.Namespace) -> List[Dict[str
     return docs
 
 
-def handle_validate(client: ReaderClient) -> Dict[str, Any]:
+def handle_validate(client: ReaderClient) -> dict[str, Any]:
     try:
         client.validate_token()
     except requests.HTTPError as exc:
@@ -235,7 +233,7 @@ def handle_validate(client: ReaderClient) -> Dict[str, Any]:
     return {"valid": True, "message": "Token is valid for Readwise Reader API."}
 
 
-def main(argv: Optional[Iterable[str]] = None) -> int:
+def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     token = get_reader_token(args.token).value
@@ -262,14 +260,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     else:
         parser.error("Unknown command")
 
-    if args.raw:
-        print(render_output(result, "json"))
-    else:
-        if not args.dry_run:
-            fields = DISPLAY_FIELDS.get(entity)
-            if fields:
-                result = select_fields(result, fields)
-        print(render_output(result, "markdown"))
+    print_result(result, entity=entity, raw=args.raw, dry_run=args.dry_run)
     return 0
 
 

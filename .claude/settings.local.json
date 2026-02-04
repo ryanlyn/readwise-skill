@@ -8,7 +8,8 @@
       "mcp__filesystem__read_multiple_files",
       "Bash(source .venv/bin/activate)",
       "Bash(env)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(/Users/ryan/dev/readwise-skill/.venv/bin/python -m pytest:*)"
     ]
   }
 }

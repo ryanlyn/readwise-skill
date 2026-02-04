@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from datetime import datetime
-from io import StringIO
-from typing import Dict, Iterable, List
 
 import pytest
 
@@ -20,7 +19,7 @@ def readwise_client() -> ReadwiseClient:
     return ReadwiseClient(token, base_url=base_url)
 
 
-def _collect(iterable: Iterable[Dict]) -> List[Dict]:
+def _collect(iterable: Iterable[dict]) -> list[dict]:
     return list(iterable)
 
 

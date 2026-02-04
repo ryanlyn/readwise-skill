@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
+
+from readwise_common.schemas import DISPLAY_FIELDS
 
 
 def _coerce_mapping(item: Any) -> Mapping[str, Any]:
@@ -42,10 +45,11 @@ def _render_plain(data: Any) -> str:
 
 def select_fields(data: Any, fields: list[str]) -> Any:
     """Project dicts to only the specified fields."""
+    allowed = set(fields)
     if isinstance(data, list):
-        return [select_fields(item, fields) for item in data]
+        return [{k: v for k, v in item.items() if k in allowed} if isinstance(item, dict) else item for item in data]
     if isinstance(data, dict):
-        return {k: v for k, v in data.items() if k in fields}
+        return {k: v for k, v in data.items() if k in allowed}
     return data
 
 
@@ -56,3 +60,15 @@ def render_output(data: Any, fmt: str) -> str:
     if fmt == "markdown":
         return _render_markdown(data)
     return _render_plain(data)
+
+
+def print_result(result: Any, *, entity: str, raw: bool, dry_run: bool) -> None:
+    """Format and print CLI output, applying field selection when appropriate."""
+    if raw:
+        print(render_output(result, "json"))
+        return
+    if not dry_run:
+        fields = DISPLAY_FIELDS.get(entity)
+        if fields:
+            result = select_fields(result, fields)
+    print(render_output(result, "markdown"))

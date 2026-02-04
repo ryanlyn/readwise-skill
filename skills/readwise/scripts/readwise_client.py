@@ -5,21 +5,20 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any
 
 import requests
 
 from readwise_common import (
-    DISPLAY_FIELDS,
     build_location_payload,
     build_tags,
     get_readwise_token,
     parse_iso_datetime,
     parse_tags,
-    render_output,
+    print_result,
     request_with_backoff,
     resolve_highlight_text,
-    select_fields,
 )
 from readwise_common.utils import load_bulk_payloads
 
@@ -28,7 +27,7 @@ USER_AGENT = "readwise-skill-cli/0.1"
 
 
 class ReadwiseClient:
-    def __init__(self, token: str, *, base_url: Optional[str] = None, dry_run: bool = False):
+    def __init__(self, token: str, *, base_url: str | None = None, dry_run: bool = False):
         self.base_url = (base_url or os.getenv("READWISE_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.dry_run = dry_run
         self.session = requests.Session()
@@ -44,9 +43,9 @@ class ReadwiseClient:
         url = f"{self.base_url}{path}"
         return request_with_backoff(self.session, method, url, **kwargs)
 
-    def paginate(self, path: str, params: Optional[Dict[str, Any]] = None) -> Iterable[Dict[str, Any]]:
-        cursor: Optional[str] = None
-        next_url: Optional[str] = None
+    def paginate(self, path: str, params: dict[str, Any] | None = None) -> Iterable[dict[str, Any]]:
+        cursor: str | None = None
+        next_url: str | None = None
         base_params = dict(params or {})
         while True:
             scoped = dict(base_params)
@@ -66,7 +65,7 @@ class ReadwiseClient:
             if not cursor and not next_url:
                 break
 
-    def create_highlight(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def create_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
         if self.dry_run:
             return {"dry_run": True, "request_payload": payload}
         response = self._request("post", "/highlights/", json={"highlights": [payload]})
@@ -84,33 +83,33 @@ class ReadwiseClient:
             return highlights[0]
         return data
 
-    def list_highlights(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+    def list_highlights(self, params: dict[str, Any]) -> Iterable[dict[str, Any]]:
         return self.paginate("/highlights/", params)
 
-    def get_highlight(self, highlight_id: int) -> Dict[str, Any]:
+    def get_highlight(self, highlight_id: int) -> dict[str, Any]:
         response = self._request("get", f"/highlights/{highlight_id}/")
         return response.json()
 
-    def update_highlight(self, highlight_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def update_highlight(self, highlight_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         if self.dry_run:
             return {"dry_run": True, "highlight_id": highlight_id, "request_payload": payload}
         response = self._request("patch", f"/highlights/{highlight_id}/", json=payload)
         return response.json()
 
-    def delete_highlight(self, highlight_id: int) -> Dict[str, Any]:
+    def delete_highlight(self, highlight_id: int) -> dict[str, Any]:
         if self.dry_run:
             return {"dry_run": True, "highlight_id": highlight_id, "action": "delete"}
         self._request("delete", f"/highlights/{highlight_id}/")
         return {"deleted": True, "highlight_id": highlight_id}
 
-    def daily_review(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def daily_review(self, params: dict[str, Any]) -> dict[str, Any]:
         response = self._request("get", "/export/", params=params)
         return response.json()
 
-    def list_books(self, params: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+    def list_books(self, params: dict[str, Any]) -> Iterable[dict[str, Any]]:
         return self.paginate("/books/", params)
 
-    def get_book(self, book_id: int) -> Dict[str, Any]:
+    def get_book(self, book_id: int) -> dict[str, Any]:
         response = self._request("get", f"/books/{book_id}/")
         return response.json()
 
@@ -155,7 +154,6 @@ def build_parser() -> argparse.ArgumentParser:
     delete.add_argument("highlight_id", type=int)
     delete.add_argument("--yes", action="store_true", help="Do not prompt for confirmation")
 
-
     highlights = subparsers.add_parser("highlights", help="List or review highlights")
     highlights_sub = highlights.add_subparsers(dest="highlights_command", required=True)
 
@@ -187,9 +185,9 @@ def _build_highlight_payload(
     args: argparse.Namespace,
     *,
     require_text: bool,
-    override_generated: Optional[bool] = None,
-) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {}
+    override_generated: bool | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
     generated = args.generated if override_generated is None else override_generated
     should_load_text = bool(getattr(args, "text", None) or getattr(args, "text_file", None) or not sys.stdin.isatty())
     if should_load_text:
@@ -201,7 +199,7 @@ def _build_highlight_payload(
     for field in ("title", "author", "source_url", "note"):
         value = getattr(args, field, None)
         if value:
-            payload[field if field != "source_url" else "source_url"] = value
+            payload[field] = value
     if getattr(args, "book_id", None):
         payload["book_id"] = args.book_id
     if getattr(args, "category", None):
@@ -215,7 +213,7 @@ def _build_highlight_payload(
     return payload
 
 
-def _normalize_bulk_payload(entry: Dict[str, Any], default_generated: bool) -> Dict[str, Any]:
+def _normalize_bulk_payload(entry: dict[str, Any], default_generated: bool) -> dict[str, Any]:
     payload = dict(entry)
     text = payload.get("text")
     if not text:
@@ -236,7 +234,7 @@ def _normalize_datetime_arg(label: str, value: str) -> str:
         raise ValueError(f"{label} must be an ISO date or datetime") from exc
 
 
-def _resolve_book_id(client: ReadwiseClient, payload: Dict[str, Any]) -> None:
+def _resolve_book_id(client: ReadwiseClient, payload: dict[str, Any]) -> None:
     """Replace book_id with book metadata so the API's dedup matches correctly.
 
     The Readwise API ignores book_id on highlight create and matches by
@@ -252,8 +250,8 @@ def _resolve_book_id(client: ReadwiseClient, payload: Dict[str, Any]) -> None:
                 payload.setdefault(field, book[book_key])
 
 
-def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
-    payloads: List[Dict[str, Any]] = []
+def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
     if args.bulk_file:
         for entry in load_bulk_payloads(args.bulk_file):
             payloads.append(_normalize_bulk_payload(entry, args.generated))
@@ -269,18 +267,18 @@ def handle_highlight_create(client: ReadwiseClient, args: argparse.Namespace) ->
     return [client.create_highlight(p) for p in payloads]
 
 
-def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
+def handle_highlight_show(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
     return client.get_highlight(args.highlight_id)
 
 
-def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
+def handle_highlight_update(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
     payload = _build_highlight_payload(args, require_text=False)
     if not payload:
         raise ValueError("No fields to update")
     return client.update_highlight(args.highlight_id, payload)
 
 
-def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
+def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
     if not args.yes:
         confirmation = input(f"Delete highlight {args.highlight_id}? [y/N] ")
         if confirmation.strip().lower() not in {"y", "yes"}:
@@ -289,7 +287,7 @@ def handle_highlight_delete(client: ReadwiseClient, args: argparse.Namespace) ->
     return client.delete_highlight(args.highlight_id)
 
 
-def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
+def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> list[dict[str, Any]]:
     params = {}
     if args.book_id:
         params["book_id"] = args.book_id
@@ -309,7 +307,7 @@ def handle_highlights_list(client: ReadwiseClient, args: argparse.Namespace) -> 
     return results
 
 
-def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
+def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
     params = {}
     if args.since:
         params["updatedAfter"] = _normalize_datetime_arg("--since", args.since)
@@ -319,7 +317,7 @@ def handle_highlights_review(client: ReadwiseClient, args: argparse.Namespace) -
     return client.daily_review(params)
 
 
-def handle_books_list(client: ReadwiseClient, args: argparse.Namespace) -> List[Dict[str, Any]]:
+def handle_books_list(client: ReadwiseClient, args: argparse.Namespace) -> list[dict[str, Any]]:
     params = {}
     author_filter = (args.author or "").lower()
     title_filter = (args.title or "").lower()
@@ -335,11 +333,11 @@ def handle_books_list(client: ReadwiseClient, args: argparse.Namespace) -> List[
     return results
 
 
-def handle_book_show(client: ReadwiseClient, args: argparse.Namespace) -> Dict[str, Any]:
+def handle_book_show(client: ReadwiseClient, args: argparse.Namespace) -> dict[str, Any]:
     return client.get_book(args.book_id)
 
 
-def main(argv: Optional[Iterable[str]] = None) -> int:
+def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     token = get_readwise_token(args.token).value
@@ -373,14 +371,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     else:
         parser.error("Unknown command")
 
-    if args.raw:
-        print(render_output(result, "json"))
-    else:
-        if not args.dry_run:
-            fields = DISPLAY_FIELDS.get(entity)
-            if fields:
-                result = select_fields(result, fields)
-        print(render_output(result, "markdown"))
+    print_result(result, entity=entity, raw=args.raw, dry_run=args.dry_run)
     return 0
 
 
