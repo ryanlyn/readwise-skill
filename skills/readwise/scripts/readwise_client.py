@@ -23,6 +23,7 @@ from readwise_common import (
     HighlightUpdatePayload,
     build_location_payload,
     build_tags,
+    format_inline_tags,
     get_readwise_token,
     parse_iso_datetime,
     parse_tags,
@@ -138,6 +139,12 @@ class ReadwiseClient:
         for item in self.paginate("/books/"):
             yield Book.model_validate(item)
 
+    def tag_highlight(self, highlight_id: int, tag_name: str) -> dict[str, Any]:
+        if self.dry_run:
+            return {"dry_run": True, "highlight_id": highlight_id, "tag": tag_name}
+        response = self._request("post", f"/highlights/{highlight_id}/tags/", json={"name": tag_name})
+        return response.json()
+
     def get_book(self, book_id: int) -> Book:
         response = self._request("get", f"/books/{book_id}/")
         return Book.model_validate(response.json())
@@ -163,6 +170,7 @@ def _build_highlight_payload(
     location_type: str | None,
     generated: bool,
     require_text: bool,
+    inline_tags: bool = True,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     should_load_text = bool(text or text_file or not sys.stdin.isatty())
@@ -182,7 +190,10 @@ def _build_highlight_payload(
 
     tag_list = build_tags(parse_tags(tags_raw), generated)
     if tag_list:
-        payload["tags"] = tag_list
+        if inline_tags:
+            payload["note"] = format_inline_tags(tag_list, payload.get("note"))
+        else:
+            payload["_tags"] = tag_list
 
     payload.update(build_location_payload(location, location_type, generated))
     return payload
@@ -193,11 +204,13 @@ def _normalize_bulk_payload(entry: dict[str, Any], default_generated: bool) -> d
     text = payload.get("text")
     if not text:
         raise ValueError("Bulk highlight payloads require 'text'")
-    tags = payload.get("tags") or []
+    tags = payload.pop("tags", None) or []
     if isinstance(tags, str):
         tags = parse_tags(tags)
     generated = payload.pop("generated", default_generated)
-    payload["tags"] = build_tags(tags, generated)
+    resolved_tags = build_tags(tags, generated)
+    if resolved_tags:
+        payload["note"] = format_inline_tags(resolved_tags, payload.get("note"))
     payload.update(build_location_payload(payload.get("location"), payload.get("location_type"), generated))
     return payload
 
@@ -319,11 +332,18 @@ def highlight_update(
         text=text, text_file=text_file, title=title, author=author,
         source_url=source_url, book_id=book_id, category=category, note=note,
         tags_raw=tags, location=location, location_type=location_type,
-        generated=generated, require_text=False,
+        generated=generated, require_text=False, inline_tags=False,
     )
-    if not payload:
+    tag_names = payload.pop("_tags", [])
+    if not payload and not tag_names:
         raise typer.BadParameter("No fields to update")
-    result = client.update_highlight(highlight_id, HighlightUpdatePayload.model_validate(payload))
+    result = None
+    if payload:
+        result = client.update_highlight(highlight_id, HighlightUpdatePayload.model_validate(payload))
+    for tag_name in tag_names:
+        client.tag_highlight(highlight_id, tag_name)
+    if result is None:
+        result = client.get_highlight(highlight_id)
     print_result(result, entity="highlight", raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 

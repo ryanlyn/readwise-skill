@@ -27,6 +27,20 @@ def build_tags(existing: Sequence[str] | None, generated: bool) -> List[str]:
     return tags
 
 
+def format_inline_tags(tags: list[str], note: str | None = None) -> str:
+    """Convert tags to Readwise inline notation and prepend to note.
+
+    Readwise processes `.tagname` at the start of the note field as tags.
+    Multiple tags: `.tag1 .tag2`. Tag + note: `.tag1 .tag2\\nNote text`.
+    """
+    if not tags:
+        return note or ""
+    inline = " ".join(tag if tag.startswith(".") else f".{tag}" for tag in tags)
+    if note:
+        return f"{inline}\n{note}"
+    return inline
+
+
 def resolve_highlight_text(text: str | None, text_file: str | None) -> str:
     if text:
         return text

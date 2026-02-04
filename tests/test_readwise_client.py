@@ -40,7 +40,6 @@ def test_highlight_crud_flow(readwise_client: ReadwiseClient) -> None:
         note="created via tests",
         location="1",
         location_type="order",
-        tags=["integration-test"],
     )
     created = readwise_client.create_highlight(payload)
     highlight_id = created.id
@@ -158,6 +157,110 @@ def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys:
     highlight_id = created.id
     readwise_main(["--dry-run", "highlight", "delete", str(highlight_id), "--yes"])
     assert readwise_client.get_highlight(highlight_id).id == highlight_id
+
+
+def test_highlight_create_with_tags(readwise_client: ReadwiseClient) -> None:
+    from readwise_common.utils import format_inline_tags
+    note_with_tags = format_inline_tags(["focus", "review"])
+    payload = HighlightCreatePayload(
+        text="Tagged highlight",
+        note=note_with_tags,
+        location="1",
+        location_type="order",
+    )
+    created = readwise_client.create_highlight(payload)
+    tag_names = {t["name"] for t in created.tags}
+    assert "focus" in tag_names
+    assert "review" in tag_names
+
+
+def test_highlight_create_generated_tags(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main([
+        "--raw", "highlight", "create",
+        "--text", "Generated highlight",
+        "--title", "Gen Test",
+        "--generated",
+    ])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert isinstance(data, list) and len(data) == 1
+    tag_names = {t["name"] for t in data[0]["tags"]}
+    assert "generated" in tag_names
+
+
+def test_highlight_create_tags_and_note(readwise_client: ReadwiseClient) -> None:
+    from readwise_common.utils import format_inline_tags
+    note_with_tags = format_inline_tags(["focus", ".generated"], "My personal note")
+    payload = HighlightCreatePayload(
+        text="Highlight with note and tags",
+        note=note_with_tags,
+        location="1",
+        location_type="order",
+    )
+    created = readwise_client.create_highlight(payload)
+    assert created.note == "My personal note"
+    tag_names = {t["name"] for t in created.tags}
+    assert "focus" in tag_names
+    assert "generated" in tag_names
+
+
+def test_highlight_create_with_tags_via_cli(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main([
+        "--raw", "highlight", "create",
+        "--text", "CLI tagged",
+        "--title", "CLI Tag Book",
+        "--tags", "alpha,beta",
+    ])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert isinstance(data, list) and len(data) == 1
+    tag_names = {t["name"] for t in data[0]["tags"]}
+    assert "alpha" in tag_names
+    assert "beta" in tag_names
+
+
+def test_dry_run_create_with_tags(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main([
+        "--dry-run", "highlight", "create",
+        "--text", "Dry run tagged",
+        "--title", "DryTagBook",
+        "--tags", "alpha,beta",
+    ])
+    captured = capsys.readouterr()
+    assert "dry_run" in captured.out
+    assert ".alpha" in captured.out
+    assert ".beta" in captured.out
+
+
+def test_highlight_update_with_tags(readwise_client: ReadwiseClient) -> None:
+    created = readwise_client.create_highlight(
+        HighlightCreatePayload(text="To be tagged later", location="1", location_type="order")
+    )
+    highlight_id = created.id
+    readwise_client.tag_highlight(highlight_id, "retrospective")
+    detail = readwise_client.get_highlight(highlight_id)
+    tag_names = {t["name"] for t in detail.tags}
+    assert "retrospective" in tag_names
+
+
+class TestFormatInlineTags:
+    def test_basic(self) -> None:
+        from readwise_common.utils import format_inline_tags
+        assert format_inline_tags(["focus", "review"]) == ".focus .review"
+
+    def test_with_note(self) -> None:
+        from readwise_common.utils import format_inline_tags
+        result = format_inline_tags(["focus"], "My note")
+        assert result == ".focus\nMy note"
+
+    def test_preserves_dot_prefix(self) -> None:
+        from readwise_common.utils import format_inline_tags
+        assert format_inline_tags([".generated", "focus"]) == ".generated .focus"
+
+    def test_empty(self) -> None:
+        from readwise_common.utils import format_inline_tags
+        assert format_inline_tags([]) == ""
+        assert format_inline_tags([], "note") == "note"
 
 
 class TestSelectFields:
