@@ -55,13 +55,8 @@ def resolve_highlight_text(text: str | None, text_file: str | None) -> str:
 
 def build_location_payload(location: str | None, location_type: str | None, generated: bool) -> dict:
     payload: dict[str, str] = {}
-    if generated:
-        if location or location_type:
-            # Respect explicit inputs even for generated quotes, but default to none.
-            pass
-        else:
-            payload["location_type"] = "none"
-            return payload
+    if generated and not location and not location_type:
+        return {"location_type": "none"}
     if location:
         payload["location"] = str(location)
         payload["location_type"] = location_type or "order"

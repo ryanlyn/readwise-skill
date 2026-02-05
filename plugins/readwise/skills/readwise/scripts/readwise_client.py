@@ -186,13 +186,17 @@ def _build_highlight_payload(
         except ValueError:
             if require_text:
                 raise
-    for field, value in [("title", title), ("author", author), ("source_url", source_url), ("note", note)]:
+    field_values = [
+        ("title", title),
+        ("author", author),
+        ("source_url", source_url),
+        ("note", note),
+        ("book_id", book_id),
+        ("category", category),
+    ]
+    for field, value in field_values:
         if value:
             payload[field] = value
-    if book_id:
-        payload["book_id"] = book_id
-    if category:
-        payload["category"] = category
 
     tag_list = build_tags(parse_tags(tags_raw), generated)
     if tag_list:

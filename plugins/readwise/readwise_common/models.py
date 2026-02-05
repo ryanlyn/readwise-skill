@@ -45,8 +45,6 @@ class HighlightListParams(BaseModel):
 class DailyReviewParams(BaseModel):
     """Placeholder for /review/ endpoint which takes no parameters."""
 
-    pass
-
 
 class BookListParams(BaseModel):
     author: str | None = None
