@@ -288,14 +288,18 @@ def highlight_create(
     title: Annotated[str | None, typer.Option(help="Source title (e.g. book/article name)")] = None,
     author: Annotated[str | None, typer.Option(help="Author name")] = None,
     source_url: Annotated[str | None, typer.Option("--source-url", help="URL of the source")] = None,
-    image_url: Annotated[str | None, typer.Option("--image-url", help="Cover image URL (recommended for books/podcasts)")] = None,
+    image_url: Annotated[
+        str | None, typer.Option("--image-url", help="Cover image URL (recommended for books/podcasts)")
+    ] = None,
     book_id: Annotated[int | None, typer.Option("--book-id", help="Attach to existing Readwise book ID")] = None,
     category: Annotated[str | None, typer.Option(help="books|articles|tweets|podcasts")] = None,
     note: Annotated[str | None, typer.Option(help="Personal note to attach")] = None,
     tags: Annotated[str | None, typer.Option(help="Comma-separated tags (e.g. 'insight,research')")] = None,
     location: Annotated[str | None, typer.Option(help="Location in source (page number, timestamp, etc.)")] = None,
     location_type: Annotated[str | None, typer.Option("--location-type", help="page|time_offset|order")] = None,
-    generated: Annotated[bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")] = False,
+    generated: Annotated[
+        bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")
+    ] = False,
     bulk_file: Annotated[str | None, typer.Option("--bulk-file", help="NDJSON file for batch create")] = None,
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
@@ -411,7 +415,9 @@ def highlights_list(
     book_id: Annotated[int | None, typer.Option("--book-id", help="Filter by Readwise book ID")] = None,
     tag: Annotated[str | None, typer.Option(help="Filter by tag name")] = None,
     updated_after: Annotated[str | None, typer.Option("--updated-after", help="ISO datetime (e.g. 2024-01-15)")] = None,
-    updated_before: Annotated[str | None, typer.Option("--updated-before", help="ISO datetime (e.g. 2024-01-15)")] = None,
+    updated_before: Annotated[
+        str | None, typer.Option("--updated-before", help="ISO datetime (e.g. 2024-01-15)")
+    ] = None,
     limit: Annotated[int, typer.Option(help="Max highlights to return")] = 50,
     category: Annotated[str | None, typer.Option(help="books|articles|tweets|podcasts")] = None,
 ) -> None:
@@ -443,7 +449,9 @@ def highlights_review(ctx: typer.Context) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     result = client.daily_review()
     highlights = [h for h in result.highlights if h.text is not None]
-    print_result(highlights, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"], renderer=render_highlights)
+    print_result(
+        highlights, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"], renderer=render_highlights
+    )
 
 
 @app.command("books")

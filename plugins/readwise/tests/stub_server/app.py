@@ -380,12 +380,14 @@ def daily_review() -> Any:
         return jsonify(payload), status
 
     highlights = list(STORE.highlights.values())
-    return jsonify({
-        "review_id": 12345,
-        "review_url": "https://readwise.io/review/12345",
-        "review_completed": False,
-        "highlights": highlights[:10],
-    })
+    return jsonify(
+        {
+            "review_id": 12345,
+            "review_url": "https://readwise.io/review/12345",
+            "review_completed": False,
+            "highlights": highlights[:10],
+        }
+    )
 
 
 @app.route("/api/v2/highlights/", methods=["POST"])

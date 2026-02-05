@@ -144,7 +144,9 @@ def docs_create(
     location: Annotated[str | None, typer.Option(help="new|later|shortlist|archive|feed")] = "later",
     tags: Annotated[str | None, typer.Option(help="Comma-separated tags (e.g. 'deep-work,research')")] = None,
     labels: Annotated[str | None, typer.Option(help="Comma-separated labels")] = None,
-    generated: Annotated[bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")] = False,
+    generated: Annotated[
+        bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")
+    ] = False,
 ) -> None:
     client: ReaderClient = ctx.obj["client"]
     if file:
@@ -176,9 +178,13 @@ def docs_list(
     category: Annotated[str | None, typer.Option(help="article|email|rss|highlight|note|pdf|epub|tweet|video")] = None,
     tag: Annotated[str | None, typer.Option(help="Filter by tag name")] = None,
     location: Annotated[str | None, typer.Option(help="new|later|shortlist|archive|feed")] = "later",
-    updated_after: Annotated[str | None, typer.Option("--updated-after", help="ISO datetime (e.g. 2024-01-15 or 2024-01-15T10:30:00Z)")] = None,
+    updated_after: Annotated[
+        str | None, typer.Option("--updated-after", help="ISO datetime (e.g. 2024-01-15 or 2024-01-15T10:30:00Z)")
+    ] = None,
     limit: Annotated[int, typer.Option(help="Max documents to return")] = 50,
-    with_content: Annotated[bool, typer.Option("--with-content", help="Include html_content (article text, video transcript)")] = False,
+    with_content: Annotated[
+        bool, typer.Option("--with-content", help="Include html_content (article text, video transcript)")
+    ] = False,
 ) -> None:
     client: ReaderClient = ctx.obj["client"]
     params = DocumentListParams(
