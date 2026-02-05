@@ -2,12 +2,21 @@
 
 A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) marketplace plugin for automating [Readwise](https://readwise.io) workflows — syncing highlights, managing documents, and streamlining your reading pipeline.
 
-## Skills
+## What you can do
 
-- **readwise** — Readwise Original API: highlights, books, daily review exports
-- **readwise-reader** — Readwise Reader API: documents, annotations, triage
+Your reading library meets your coding assistant. Capture insights as you work with Claude.
 
-Both skills provide CLI scripts that handle authentication, retries, rate limits, pagination, and dry-run mode.
+### Readwise
+
+- **Save quotes** — paste text, ask Claude to save it to Readwise
+- **Query your library** — "Find my highlights from Meditations tagged with stoicism"
+- **Daily review** — "Show today's Readwise highlights" to spark reflection
+
+### Reader
+
+- **Save for later** — "Save this URL to Reader"
+- **Check your inbox** — "What's new in my Reader inbox?"
+- **Triage** — "Archive everything I finished reading this week"
 
 ## Prerequisites
 
