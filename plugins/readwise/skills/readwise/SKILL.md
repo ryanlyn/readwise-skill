@@ -35,8 +35,8 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 ... highlight create --text "..." --dry-run
 ```
 
-- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py [--dry-run] [--raw] highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--category ...] [--generated] [--tags t1,t2]`
-  Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author/category for the API). **Always specify `--category`** when creating new sources—see "Category is critical" below. If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
+- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py [--dry-run] [--raw] highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--category ...] [--image-url ...] [--generated] [--tags t1,t2]`
+  Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author/category for the API). **Always specify `--category`** when creating new sources—see "Category is critical" below. Use `--image-url` for cover images (recommended for `books` and `podcasts`, not needed for `articles` or `tweets`). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
 - `... [--dry-run] highlight update <id> [--title --note --tags --generated]` – partial updates.
 - `... highlight show <id>` – fetch highlight details.
 - `... highlight delete <id> [--yes]` – delete a highlight, `--yes` skips confirmation.
@@ -52,7 +52,7 @@ Default output is human-readable markdown with only key fields. Use `--raw` (bef
 
 `books --title` performs a case-insensitive substring match and often returns multiple books with the same title. Readwise creates separate book entries per source (Kindle, API, supplemental, etc.), so duplicates are common. When multiple results come back, review them all and use judgement to determine whether they are duplicates of the same work or entirely separate books:
 
-- **Duplicates** (same author, different sources): Readwise creates one entry per import source. A Kindle book, an API-created entry, and a supplemental entry for the same work will all share a title/author. Among duplicates, the entry with the most `num_highlights` is usually the primary one. `category=supplementals` entries are Readwise-generated companions, not user-created.
+- **Duplicates** (same author, different sources): Readwise creates one entry per import source. A Kindle book and an API-created entry for the same work will share a title/author. Among duplicates, the entry with the most `num_highlights` is usually the primary one.
 - **Distinct books**: Different authors or categories mean genuinely different works. Treat these as separate and ask the user which one they mean if the intent is ambiguous.
 
 ## Listing highlights for a book by name
@@ -80,7 +80,7 @@ Readwise groups highlights into "books" (sources) using **(title, author, source
 
 ## Category is critical
 
-**Always specify `--category` explicitly.** The API defaults to `articles` if `source_url` is present, otherwise `books`—but these defaults often miscategorize content. Valid categories: `books`, `articles`, `tweets`, `podcasts`, `supplementals`.
+**Always specify `--category` explicitly.** The API defaults to `articles` if `source_url` is present, otherwise `books`—but these defaults often miscategorize content. Valid categories: `books`, `articles`, `tweets`, `podcasts`.
 
 | Content type | Category |
 |--------------|----------|

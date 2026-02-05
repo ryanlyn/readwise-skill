@@ -24,7 +24,7 @@ Use this skill to script workflows against the Readwise Reader product (saved ar
 - "Archive everything I've finished reading this week" — uses `docs pull` + `docs update --state archive`
 
 ## CLI commands
-- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Reader API v3 does not support uploading local files directly.
+- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --location later --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Use `--location` to set where it lands (defaults to `later`). Reader API v3 does not support uploading local files directly.
 - `... docs list [--location later] [--category article] [--tag deep-work] [--limit 25] [--id <doc-id>] [--with-content]` – paginated document listing. Defaults to `--location later`. Use `--id` to fetch a single document. Use `--with-content` to include `html_content` (article text, video transcripts).
 - `... docs update <id> [--state archive --tags "deep,focus" --title ...]` – patch metadata/state (`new`, `later`, `archive`). Supports `--dry-run`.
 - `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows.

@@ -141,6 +141,7 @@ def docs_create(
     title: Annotated[str | None, typer.Option(help="Override document title")] = None,
     summary: Annotated[str | None, typer.Option(help="Custom summary/description")] = None,
     category: Annotated[str | None, typer.Option(help="article|email|rss|highlight|note|pdf|epub|tweet|video")] = None,
+    location: Annotated[str | None, typer.Option(help="new|later|shortlist|archive|feed")] = "later",
     tags: Annotated[str | None, typer.Option(help="Comma-separated tags (e.g. 'deep-work,research')")] = None,
     labels: Annotated[str | None, typer.Option(help="Comma-separated labels")] = None,
     generated: Annotated[bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")] = False,
@@ -153,9 +154,11 @@ def docs_create(
     payload = DocumentCreatePayload(
         url=url,
         html=content,
+        should_clean_html=True if content else None,
         title=title,
         summary=summary,
         category=category,
+        location=location,
         tags=tag_list,
         labels=label_list,
     )

@@ -14,8 +14,9 @@ class HighlightCreatePayload(BaseModel):
     title: str | None = None
     author: str | None = None
     source_url: str | None = None
+    image_url: str | None = None
     book_id: int | None = None
-    category: Literal["articles", "books", "tweets", "podcasts", "supplementals"] | None = None
+    category: Literal["articles", "books", "tweets", "podcasts"] | None = None
     note: str | None = None
     tags: list[str] = []
     location: str | None = None
@@ -39,7 +40,7 @@ class HighlightListParams(BaseModel):
     tag: str | None = None
     updated_after: str | None = None
     updated_before: str | None = None
-    category: Literal["articles", "books", "tweets", "podcasts", "supplementals"] | None = None
+    category: Literal["articles", "books", "tweets", "podcasts"] | None = None
 
 
 class DailyReviewParams(BaseModel):
@@ -54,9 +55,11 @@ class BookListParams(BaseModel):
 class DocumentCreatePayload(BaseModel):
     url: str | None = None
     html: str | None = None
+    should_clean_html: bool | None = None
     title: str | None = None
     summary: str | None = None
     category: str | None = None
+    location: str | None = None
     tags: list[str] = []
     labels: list[str] = []
 
