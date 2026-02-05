@@ -366,6 +366,10 @@ def test_highlights_list_uses_blockquote_format(capsys: pytest.CaptureFixture[st
     assert "id=" not in captured.out
 
 
+def test_readwise_validate_token(readwise_client: ReadwiseClient) -> None:
+    readwise_client.validate_token()
+
+
 def test_falsy_fields_omitted_in_markdown(capsys: pytest.CaptureFixture[str]) -> None:
     readwise_main(["book", "1337"])
     captured = capsys.readouterr()

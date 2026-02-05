@@ -11,8 +11,8 @@ Both skills use CLI scripts under `skills/*/scripts/` that handle authentication
 
 ## Project structure
 
-- `skills/readwise/` — Readwise Original skill (SKILL.md + CLI + API reference)
-- `skills/readwise-reader/` — Readwise Reader skill (SKILL.md + CLI + API reference)
+- `skills/readwise/` — Readwise Original skill (SKILL.md + CLI scripts)
+- `skills/readwise-reader/` — Readwise Reader skill (SKILL.md + CLI scripts)
 - `readwise_common/` — shared Python package (auth, HTTP, formatting, utilities)
 - `tests/` — pytest suite with an in-memory Flask stub server
 
@@ -29,4 +29,4 @@ Tests use a local stub server (`tests/stub_server/`) that mocks both APIs in-mem
 
 - Use `--generated` flag (not manual `.generated` tags) when saving agent-produced content
 - Use `--dry-run` before any write operation to preview the payload
-- Prefer `--output json` for programmatic consumption, `--output markdown` for human-readable output
+- Use `--raw` for full JSON output, default output is human-readable markdown

@@ -1,6 +1,6 @@
 {
   "name": "readwise",
-  "description": "Interact with Readwise Original and Reader APIs for syncing highlights, managing documents, and automating reading workflows.",
+  "description": "Create and review Readwise highlights; save articles to Reader; triage your reading queue — all from Claude Code.",
   "version": "0.1.0",
   "repository": "https://github.com/ryanlyn/readwise-skill"
 }

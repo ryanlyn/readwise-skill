@@ -13,6 +13,11 @@ Use this skill to script workflows against the Readwise Reader product (saved ar
 2. Call `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py ...` whenever possible; it handles retries, `.generated` tagging, and `--dry-run` against the `/api/v3` endpoints.
 3. Respect Reader's tighter rate limits (20 req/min). The CLI surfaces remaining budget whenever headers are present; throttle accordingly.
 
+## Example workflows
+- "Save this article to Reader for later" — uses `docs create` with a URL
+- "Show me what's new in my Reader inbox" — uses `docs list --category new`
+- "Archive everything I've finished reading this week" — uses `docs pull` + `docs update --state archive`
+
 ## CLI commands
 - `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Reader API v3 does not support uploading local files directly.
 - `... docs list --category new --tag deep-work --limit 25` – paginated document listing with filters on id/category/tag/location/update time.
@@ -31,9 +36,6 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py`: CLI covering document create/list/update/pull plus token validation against Reader API v3. Integrates with shared utilities from `${CLAUDE_PLUGIN_ROOT}/readwise_common/`.
 - Shared helpers live in `${CLAUDE_PLUGIN_ROOT}/readwise_common/` (auth, HTTP retries, tag/location utilities); import from there when extending functionality to keep behavior consistent.
-
-## References
-- `${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/references/api.md`: endpoint matrix, payload notes, and example requests/responses segregated by resource.
 
 ## Testing & validation
 - Use `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader ${CLAUDE_PLUGIN_ROOT}/readwise_common` before shipping changes.

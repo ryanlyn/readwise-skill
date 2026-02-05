@@ -21,6 +21,7 @@ from readwise_common import (
     HighlightCreatePayload,
     HighlightListParams,
     HighlightUpdatePayload,
+    TokenValidationResult,
     build_location_payload,
     build_tags,
     format_inline_tags,
@@ -32,18 +33,21 @@ from readwise_common import (
     request_with_backoff,
     resolve_highlight_text,
 )
+from readwise_common.http import APIRequestError
 from readwise_common.utils import load_bulk_payloads
 
 HIGHLIGHT_FIELDS = ["id", "text", "note", "tags"]
 BOOK_FIELDS = ["id", "title", "author", "category", "source", "num_highlights"]
 
 DEFAULT_BASE_URL = "https://readwise.io/api/v2"
+AUTH_URL = "https://readwise.io/api/v2/auth/"
 USER_AGENT = "readwise-skill-cli/0.1"
 
 
 class ReadwiseClient:
-    def __init__(self, token: str, *, base_url: str | None = None, dry_run: bool = False):
+    def __init__(self, token: str, *, base_url: str | None = None, auth_url: str | None = None, dry_run: bool = False):
         self.base_url = (base_url or os.getenv("READWISE_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+        self.auth_url = auth_url or os.getenv("READWISE_AUTH_URL") or AUTH_URL
         self.dry_run = dry_run
         self.session = requests.Session()
         self.session.headers.update(
@@ -152,6 +156,12 @@ class ReadwiseClient:
         response = self._request("get", f"/books/{book_id}/")
         return Book.model_validate(response.json())
 
+    def validate_token(self) -> None:
+        response = request_with_backoff(self.session, "get", self.auth_url)
+        if response.status_code != 204:
+            error = requests.HTTPError("Unexpected auth response", response=response)
+            raise error
+
 
 # ---------------------------------------------------------------------------
 # Payload helpers
@@ -250,9 +260,11 @@ def _resolve_book_id(client: ReadwiseClient, payload: dict[str, Any]) -> None:
 app = typer.Typer(help="Interact with the Readwise Original API")
 highlight_app = typer.Typer(help="Operate on a single highlight")
 highlights_app = typer.Typer(help="List or review highlights")
+auth_app = typer.Typer(help="Authentication helpers")
 
 app.add_typer(highlight_app, name="highlight")
 app.add_typer(highlights_app, name="highlights")
+app.add_typer(auth_app, name="auth")
 
 
 @app.callback()
@@ -472,6 +484,31 @@ def book_show(
     client: ReadwiseClient = ctx.obj["client"]
     result = client.get_book(book_id)
     print_result(result, fields=BOOK_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+
+
+@auth_app.command("validate")
+def auth_validate(ctx: typer.Context) -> None:
+    client: ReadwiseClient = ctx.obj["client"]
+    try:
+        client.validate_token()
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code == 401:
+            message = "Token is invalid. Generate one at https://readwise.io/access_token"
+        elif status_code == 403:
+            message = "Token is unauthorized. Generate one at https://readwise.io/access_token"
+        else:
+            status = status_code if status_code is not None else "unknown"
+            message = f"Token validation failed with status {status}."
+        result = TokenValidationResult(valid=False, status=status_code, message=message)
+        print_result(result, fields=None, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+        return
+    except APIRequestError as exc:
+        result = TokenValidationResult(valid=False, message=f"Token validation failed: {exc}")
+        print_result(result, fields=None, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+        return
+    result = TokenValidationResult(valid=True, message="Token is valid for Readwise API.")
+    print_result(result, fields=None, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 def main(argv: Iterable[str] | None = None) -> int:

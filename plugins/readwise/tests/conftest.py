@@ -59,6 +59,7 @@ def configure_env() -> None:
     os.environ["READWISE_TOKEN"] = "stub-token"
     os.environ["READWISE_API_BASE_URL"] = "http://127.0.0.1:3000/api/v2"
     os.environ["READWISE_READER_API_BASE_URL"] = "http://127.0.0.1:3000/api/v3"
+    os.environ["READWISE_AUTH_URL"] = "http://127.0.0.1:3000/api/v2/auth/"
     os.environ["READWISE_READER_AUTH_URL"] = "http://127.0.0.1:3000/api/v2/auth/"
 
 

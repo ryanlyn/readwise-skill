@@ -23,7 +23,29 @@ In Claude Code:
 /plugin install readwise@readwise-skill
 ```
 
-Then set `READWISE_TOKEN` as an environment variable or Claude Code secret.
+After installing, you should see the `readwise` and `readwise-reader` skills listed when you run `/plugin list`. Try asking Claude: **"Show my Readwise books"** to confirm everything is working.
+
+If the plugin doesn't load, check that:
+- You ran both `/plugin marketplace add` and `/plugin install`
+- Claude Code is up to date
+
+## Setup
+
+Get your Readwise access token from https://readwise.io/access_token, then set it as a Claude Code secret (recommended) or shell environment variable:
+
+```
+# Claude Code secret (persists across sessions)
+/secrets set READWISE_TOKEN <your-token>
+
+# Or shell environment variable
+export READWISE_TOKEN=<your-token>
+```
+
+Your token is sent only to `readwise.io` API endpoints. It is not sent to the model provider or stored by the plugin.
+
+## Verify your setup
+
+Ask Claude: **"Validate my Readwise token"** — both skills support `auth validate` and will confirm your token is working.
 
 ## Development
 

@@ -13,6 +13,11 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 2. Use `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py ...` instead of calling the API directly; it handles retries, pagination, rate-limit surfacing, `--dry-run`, and tagging rules.
 3. Keep requests below the documented rate limit (currently 60 req/min). Batch operations and pause between pages when processing large libraries.
 
+## Example workflows
+- "Summarize my daily review and save highlights to a note" — uses `highlights review` to fetch today's highlights, then formats them
+- "Find all highlights from Meditations and export as markdown" — uses `books` to find the book ID, then `highlights list` to fetch
+- "Save this quote to my Readwise" — uses `highlight create` with the quote text
+
 ## CLI commands
 - `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--generated] [--tags t1,t2] [--dry-run]`
   Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author for the API). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
@@ -23,6 +28,7 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - `... highlights review --since 2026-02-01` – wraps the daily review/export endpoint.
 - `... books [--title ...] [--author ...] [--limit N]` – search books by title/author (case-insensitive substring match).
 - `... book <id>` – fetch a single book's metadata.
+- `... auth validate` – confirms your token works by hitting the `/api/v2/auth/` endpoint.
 
 Default output is human-readable markdown with only key fields. Use `--raw` to get full JSON with all fields.
 
@@ -54,9 +60,6 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.
 - Shared helpers live in `${CLAUDE_PLUGIN_ROOT}/readwise_common/` (auth, HTTP retries, tag/location utilities); import from there when extending functionality to keep behavior consistent.
-
-## References
-- `${CLAUDE_PLUGIN_ROOT}/skills/readwise/references/api.md`: mirrors endpoints, parameters, and payload schemas that evolve faster than this SKILL.
 
 ## Testing & validation
 - Use the dry-run flag in the client to print payloads instead of sending them when iterating on workflows.
