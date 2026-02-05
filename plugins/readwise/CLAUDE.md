@@ -16,15 +16,6 @@ Both skills use CLI scripts under `skills/*/scripts/` that handle authentication
 - `readwise_common/` — shared Python package (auth, HTTP, formatting, utilities)
 - `tests/` — pytest suite with an in-memory Flask stub server
 
-## Testing
-
-```
-uv sync --extra dev
-uv run pytest tests/
-```
-
-Tests use a local stub server (`tests/stub_server/`) that mocks both APIs in-memory. No real API tokens needed.
-
 ## Conventions
 
 - Use `--generated` flag (not manual `.generated` tags) when saving agent-produced content
