@@ -24,18 +24,29 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - "Save this quote to my Readwise" — uses `highlight create` with the quote text
 
 ## CLI commands
-- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--generated] [--tags t1,t2] [--dry-run]`
-  Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author for the API). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
-- `... highlight update <id> [--title --note --tags --generated]` – partial updates, respects `--dry-run`.
+
+**Global options** (`--dry-run`, `--raw`) must come BEFORE the subcommand:
+```bash
+# Correct — global options before subcommand
+... --dry-run highlight create --text "..."
+... --raw highlights list --book-id 123
+
+# Wrong — will fail with "No such option"
+... highlight create --text "..." --dry-run
+```
+
+- `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py [--dry-run] [--raw] highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--category ...] [--generated] [--tags t1,t2]`
+  Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author/category for the API). **Always specify `--category`** when creating new sources—see "Category is critical" below. If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
+- `... [--dry-run] highlight update <id> [--title --note --tags --generated]` – partial updates.
 - `... highlight show <id>` – fetch highlight details.
 - `... highlight delete <id> [--yes]` – delete a highlight, `--yes` skips confirmation.
-- `... highlights list --book-id 123 --tag focus --updated-after 2026-02-01` – cursor-based listing with optional limit.
-- `... highlights review --since 2026-02-01` – wraps the daily review/export endpoint.
+- `... highlights list [--book-id 123] [--tag focus] [--category books] [--updated-after 2026-02-01] [--limit 50]` – cursor-based listing. Dates are ISO format (e.g. `2026-02-01` or `2026-02-01T10:30:00Z`).
+- `... highlights review` – fetches today's daily review highlights (no parameters; returns the curated spaced-repetition set).
 - `... books [--title ...] [--author ...] [--limit N]` – search books by title/author (case-insensitive substring match).
 - `... book <id>` – fetch a single book's metadata.
 - `... auth validate` – confirms your token works by hitting the `/api/v2/auth/` endpoint.
 
-Default output is human-readable markdown with only key fields. Use `--raw` to get full JSON with all fields.
+Default output is human-readable markdown with only key fields. Use `--raw` (before the subcommand) to get full JSON with all fields.
 
 ## Disambiguating book matches
 
@@ -53,14 +64,41 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 ## Adding a highlight to an existing book
 1. Search for the book: `... books --title "when breath becomes air"`
 2. Note the book `id` from the output.
-3. Create the highlight: `... highlight create --text "the quote" --book-id <id> --generated`
+3. Create the highlight: `... highlight create --text "the verbatim quote" --book-id <id>`
    The CLI looks up the book's title/author/category and injects them into the payload so the Readwise API matches the highlight to the correct book.
+   Only add `--generated` if the text is a summary or paraphrase, not a direct quote.
+
+## How Readwise matches sources
+
+Readwise groups highlights into "books" (sources) using **(title, author, source_url)**. The API de-duplicates highlights by matching all four fields: **(title, author, source_url, text)**—including nulls.
+
+**Critical**: All highlights from the same content—whether verbatim quotes or generated summaries—MUST use identical `(title, author, source_url)` values to be grouped together. Inconsistent attributes will scatter highlights across separate book entries.
+
+- If you omit `--title`, highlights go into a generic "Quotes" book
+- If you omit `--author`, it stays blank (or uses the URL domain if `source_url` is set)
+- Use `--book-id` when adding to an existing book—the CLI fetches and injects the correct title/author/source_url
+
+## Category is critical
+
+**Always specify `--category` explicitly.** The API defaults to `articles` if `source_url` is present, otherwise `books`—but these defaults often miscategorize content. Valid categories: `books`, `articles`, `tweets`, `podcasts`, `supplementals`.
+
+| Content type | Category |
+|--------------|----------|
+| Physical/ebook | `books` |
+| Blog post, web article | `articles` |
+| Tweet/X post | `tweets` |
+| Podcast episode | `podcasts` |
+| **YouTube video** | `podcasts` |
+
+**YouTube videos should use `podcasts`**, not `articles`. Readwise treats video content as podcast-like (time-based, spoken word). Using `articles` will cause display and organizational issues.
+
+Mismatched categories create duplicate book entries and break the user's library organization. When in doubt, ask the user or check existing entries with `books --title`.
 
 ## Data entry guidance
-- **Generated snippets**: prefer the explicit `--generated` flag rather than manual tagging. The CLI injects `.generated` for discoverability and leaves other metadata untouched.
+- **Generated snippets**: Use `--generated` ONLY for highlights that are NOT verbatim quotes from the source content—e.g., AI-generated summaries, paraphrases, or synthesized insights. Do NOT use it for actual quotes or excerpts copied directly from the text. The CLI injects `.generated` for discoverability and sets `location_type=none` since generated content has no source location. Generated highlights should still use the SAME (title, author, source_url) as verbatim highlights from the same source.
 - **Highlight text**: supply `--text`, `--text-file`, or pipe content via stdin. The CLI refuses to guess. Bulk imports accept NDJSON rows with `text`, `title`, and `tags`.
-- **Location best practices**: omit `--location` unless you can provide an absolute, client-agnostic reference (page number, character offset). When `--location` is omitted the payload leaves `location` blank so Readwise can reconcile it later. For generated quotes the CLI defaults to `location_type=none`.
-- **Dry runs**: add `--dry-run` to print the exact payload without calling the API. Dry-run output always shows the full payload (no field filtering).
+- **Location best practices**: omit `--location` unless you can provide an absolute, client-agnostic reference (page number, character offset). When `--location` is omitted the payload leaves `location` blank so Readwise can reconcile it later. Valid `--location-type` values: `page` (books), `time_offset` (podcasts/videos), `order` (articles). For generated quotes the CLI defaults to `location_type=none`.
+- **Dry runs**: add `--dry-run` BEFORE the subcommand (e.g., `... --dry-run highlight create ...`) to print the exact payload without calling the API. Dry-run output always shows the full payload (no field filtering).
 
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.
@@ -69,4 +107,4 @@ Default output is human-readable markdown with only key fields. Use `--raw` to g
 ## Testing & validation
 - Use the dry-run flag in the client to print payloads instead of sending them when iterating on workflows.
 - Run `uv run --project ${CLAUDE_PLUGIN_ROOT} python -m compileall ${CLAUDE_PLUGIN_ROOT}/skills/readwise ${CLAUDE_PLUGIN_ROOT}/readwise_common` before shipping changes to catch syntax issues.
-- For live smoke tests, set `READWISE_TOKEN` and exercise `highlight create --dry-run`, `highlight list`, and `highlights review` against a small limit to verify pagination + rate-limit logging.
+- For live smoke tests, set `READWISE_TOKEN` and exercise `--dry-run highlight create`, `highlights list`, and `highlights review` against a small limit to verify pagination + rate-limit logging.

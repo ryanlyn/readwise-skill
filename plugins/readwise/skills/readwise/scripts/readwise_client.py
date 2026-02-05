@@ -13,7 +13,6 @@ import typer
 from readwise_common import (
     Book,
     BookListParams,
-    DailyReviewParams,
     DailyReviewResponse,
     DeleteResult,
     DryRunResult,
@@ -132,14 +131,8 @@ class ReadwiseClient:
         self._request("delete", f"/highlights/{highlight_id}/")
         return DeleteResult(deleted=True, highlight_id=highlight_id)
 
-    def daily_review(self, params: DailyReviewParams) -> DailyReviewResponse:
-        query: dict[str, Any] = {}
-        if params.updated_after is not None:
-            query["updatedAfter"] = params.updated_after
-        if params.updated_before is not None:
-            query["updatedBefore"] = params.updated_before
-        query["limit"] = params.limit
-        response = self._request("get", "/export/", params=query)
+    def daily_review(self) -> DailyReviewResponse:
+        response = self._request("get", "/review/")
         return DailyReviewResponse.model_validate(response.json())
 
     def list_books(self, params: BookListParams) -> Iterable[Book]:
@@ -284,19 +277,19 @@ def app_callback(
 @highlight_app.command("create")
 def highlight_create(
     ctx: typer.Context,
-    text: Annotated[str | None, typer.Option(help="Highlight text. Falls back to --text-file or stdin.")] = None,
+    text: Annotated[str | None, typer.Option(help="Highlight text (or use --text-file or stdin)")] = None,
     text_file: Annotated[str | None, typer.Option("--text-file", help="Path to file containing highlight text")] = None,
-    title: Annotated[str | None, typer.Option(help="Optional title to associate")] = None,
+    title: Annotated[str | None, typer.Option(help="Source title (e.g. book/article name)")] = None,
     author: Annotated[str | None, typer.Option(help="Author name")] = None,
-    source_url: Annotated[str | None, typer.Option("--source-url", help="Source URL")] = None,
-    book_id: Annotated[int | None, typer.Option("--book-id", help="Existing Readwise book ID")] = None,
-    category: Annotated[str | None, typer.Option(help="Highlight category")] = None,
+    source_url: Annotated[str | None, typer.Option("--source-url", help="URL of the source")] = None,
+    book_id: Annotated[int | None, typer.Option("--book-id", help="Attach to existing Readwise book ID")] = None,
+    category: Annotated[str | None, typer.Option(help="books|articles|tweets|podcasts|supplementals")] = None,
     note: Annotated[str | None, typer.Option(help="Personal note to attach")] = None,
-    tags: Annotated[str | None, typer.Option(help="Comma-separated tags")] = None,
-    location: Annotated[str | None, typer.Option()] = None,
-    location_type: Annotated[str | None, typer.Option("--location-type", help="Location type")] = None,
-    generated: Annotated[bool, typer.Option("--generated", help="Tag highlight as synthetic")] = False,
-    bulk_file: Annotated[str | None, typer.Option("--bulk-file", help="NDJSON payloads for batch create")] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags (e.g. 'insight,research')")] = None,
+    location: Annotated[str | None, typer.Option(help="Location in source (page number, timestamp, etc.)")] = None,
+    location_type: Annotated[str | None, typer.Option("--location-type", help="page|time_offset|order")] = None,
+    generated: Annotated[bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")] = False,
+    bulk_file: Annotated[str | None, typer.Option("--bulk-file", help="NDJSON file for batch create")] = None,
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     payloads: list[dict[str, Any]] = []
@@ -333,7 +326,7 @@ def highlight_create(
 @highlight_app.command("show")
 def highlight_show(
     ctx: typer.Context,
-    highlight_id: Annotated[int, typer.Argument()],
+    highlight_id: Annotated[int, typer.Argument(help="Highlight ID to fetch")],
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     result = client.get_highlight(highlight_id)
@@ -343,19 +336,19 @@ def highlight_show(
 @highlight_app.command("update")
 def highlight_update(
     ctx: typer.Context,
-    highlight_id: Annotated[int, typer.Argument()],
-    text: Annotated[str | None, typer.Option(help="Highlight text")] = None,
-    text_file: Annotated[str | None, typer.Option("--text-file")] = None,
-    title: Annotated[str | None, typer.Option()] = None,
-    author: Annotated[str | None, typer.Option()] = None,
-    source_url: Annotated[str | None, typer.Option("--source-url")] = None,
-    book_id: Annotated[int | None, typer.Option("--book-id")] = None,
-    category: Annotated[str | None, typer.Option()] = None,
-    note: Annotated[str | None, typer.Option()] = None,
-    tags: Annotated[str | None, typer.Option(help="Comma-separated tags")] = None,
-    location: Annotated[str | None, typer.Option()] = None,
-    location_type: Annotated[str | None, typer.Option("--location-type")] = None,
-    generated: Annotated[bool, typer.Option("--generated")] = False,
+    highlight_id: Annotated[int, typer.Argument(help="Highlight ID to update")],
+    text: Annotated[str | None, typer.Option(help="New highlight text")] = None,
+    text_file: Annotated[str | None, typer.Option("--text-file", help="Path to file containing new text")] = None,
+    title: Annotated[str | None, typer.Option(help="New source title")] = None,
+    author: Annotated[str | None, typer.Option(help="New author name")] = None,
+    source_url: Annotated[str | None, typer.Option("--source-url", help="New source URL")] = None,
+    book_id: Annotated[int | None, typer.Option("--book-id", help="Move to different book ID")] = None,
+    category: Annotated[str | None, typer.Option(help="books|articles|tweets|podcasts|supplementals")] = None,
+    note: Annotated[str | None, typer.Option(help="New personal note")] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags to add")] = None,
+    location: Annotated[str | None, typer.Option(help="New location in source")] = None,
+    location_type: Annotated[str | None, typer.Option("--location-type", help="page|time_offset|order")] = None,
+    generated: Annotated[bool, typer.Option("--generated", help="Mark as agent-generated")] = False,
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     payload = _build_highlight_payload(
@@ -390,8 +383,8 @@ def highlight_update(
 @highlight_app.command("delete")
 def highlight_delete(
     ctx: typer.Context,
-    highlight_id: Annotated[int, typer.Argument()],
-    yes: Annotated[bool, typer.Option("--yes", help="Do not prompt for confirmation")] = False,
+    highlight_id: Annotated[int, typer.Argument(help="Highlight ID to delete")],
+    yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation prompt")] = False,
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     if not yes:
@@ -407,12 +400,12 @@ def highlight_delete(
 @highlights_app.command("list")
 def highlights_list(
     ctx: typer.Context,
-    book_id: Annotated[int | None, typer.Option("--book-id")] = None,
-    tag: Annotated[str | None, typer.Option()] = None,
-    updated_after: Annotated[str | None, typer.Option("--updated-after")] = None,
-    updated_before: Annotated[str | None, typer.Option("--updated-before")] = None,
-    limit: Annotated[int, typer.Option()] = 50,
-    category: Annotated[str | None, typer.Option()] = None,
+    book_id: Annotated[int | None, typer.Option("--book-id", help="Filter by Readwise book ID")] = None,
+    tag: Annotated[str | None, typer.Option(help="Filter by tag name")] = None,
+    updated_after: Annotated[str | None, typer.Option("--updated-after", help="ISO datetime (e.g. 2024-01-15)")] = None,
+    updated_before: Annotated[str | None, typer.Option("--updated-before", help="ISO datetime (e.g. 2024-01-15)")] = None,
+    limit: Annotated[int, typer.Option(help="Max highlights to return")] = 50,
+    category: Annotated[str | None, typer.Option(help="books|articles|tweets|podcasts|supplementals")] = None,
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     params = HighlightListParams(
@@ -437,28 +430,20 @@ def highlights_list(
 
 
 @highlights_app.command("review")
-def highlights_review(
-    ctx: typer.Context,
-    since: Annotated[str | None, typer.Option(help="ISO timestamp or YYYY-MM-DD")] = None,
-    until: Annotated[str | None, typer.Option(help="ISO timestamp or YYYY-MM-DD")] = None,
-    limit: Annotated[int, typer.Option()] = 50,
-) -> None:
+def highlights_review(ctx: typer.Context) -> None:
+    """Fetch today's daily review highlights from Readwise."""
     client: ReadwiseClient = ctx.obj["client"]
-    params = DailyReviewParams(
-        updated_after=_normalize_datetime_arg("--since", since) if since else None,
-        updated_before=_normalize_datetime_arg("--until", until) if until else None,
-        limit=limit,
-    )
-    result = client.daily_review(params)
-    print_result(result, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    result = client.daily_review()
+    highlights = [h for h in result.highlights if h.text is not None]
+    print_result(highlights, fields=HIGHLIGHT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"], renderer=render_highlights)
 
 
 @app.command("books")
 def books_list(
     ctx: typer.Context,
-    limit: Annotated[int, typer.Option()] = 50,
-    author: Annotated[str | None, typer.Option()] = None,
-    title: Annotated[str | None, typer.Option(help="Filter by title (case-insensitive substring match)")] = None,
+    limit: Annotated[int, typer.Option(help="Max books to return")] = 50,
+    author: Annotated[str | None, typer.Option(help="Filter by author (case-insensitive substring)")] = None,
+    title: Annotated[str | None, typer.Option(help="Filter by title (case-insensitive substring)")] = None,
 ) -> None:
     client: ReadwiseClient = ctx.obj["client"]
     params = BookListParams(author=author, title=title)

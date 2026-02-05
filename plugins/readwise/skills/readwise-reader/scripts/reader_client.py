@@ -27,7 +27,7 @@ from readwise_common import (
 )
 from readwise_common.http import APIRequestError
 
-DOCUMENT_FIELDS = ["id", "url", "title", "category", "location", "tags"]
+DOCUMENT_FIELDS = ["id", "source_url", "title", "category", "location", "word_count", "reading_progress", "tags"]
 
 DEFAULT_BASE_URL = "https://readwise.io/api/v3"
 AUTH_URL = "https://readwise.io/api/v2/auth/"
@@ -59,8 +59,10 @@ class ReaderClient:
         response = self._request("post", "/save/", json=data)
         return DocumentSaveResponse.model_validate(response.json())
 
-    def list_documents(self, params: DocumentListParams) -> Iterable[Document]:
-        query: dict[str, Any] = {}
+    def list_documents(self, params: DocumentListParams, *, with_content: bool = False) -> Iterable[Document]:
+        query: dict[str, Any] = {"withRawSourceUrl": "true"}
+        if with_content:
+            query["withHtmlContent"] = "true"
         if params.document_id is not None:
             query["id"] = params.document_id
         if params.category is not None:
@@ -133,15 +135,15 @@ def app_callback(
 @docs_app.command("create")
 def docs_create(
     ctx: typer.Context,
-    url: Annotated[str | None, typer.Option()] = None,
-    content: Annotated[str | None, typer.Option()] = None,
-    file: Annotated[str | None, typer.Option()] = None,
-    title: Annotated[str | None, typer.Option()] = None,
-    summary: Annotated[str | None, typer.Option()] = None,
-    category: Annotated[str | None, typer.Option()] = None,
-    tags: Annotated[str | None, typer.Option(help="Comma-separated tags")] = None,
+    url: Annotated[str | None, typer.Option(help="URL to save (article, video, tweet, etc.)")] = None,
+    content: Annotated[str | None, typer.Option(help="Raw HTML content instead of URL")] = None,
+    file: Annotated[str | None, typer.Option(help="Not supported by Reader API v3")] = None,
+    title: Annotated[str | None, typer.Option(help="Override document title")] = None,
+    summary: Annotated[str | None, typer.Option(help="Custom summary/description")] = None,
+    category: Annotated[str | None, typer.Option(help="article|email|rss|highlight|note|pdf|epub|tweet|video")] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags (e.g. 'deep-work,research')")] = None,
     labels: Annotated[str | None, typer.Option(help="Comma-separated labels")] = None,
-    generated: Annotated[bool, typer.Option("--generated")] = False,
+    generated: Annotated[bool, typer.Option("--generated", help="Mark as agent-generated (adds .generated tag)")] = False,
 ) -> None:
     client: ReaderClient = ctx.obj["client"]
     if file:
@@ -167,12 +169,13 @@ def docs_create(
 @docs_app.command("list")
 def docs_list(
     ctx: typer.Context,
-    id: Annotated[str | None, typer.Option("--id")] = None,
-    category: Annotated[str | None, typer.Option()] = None,
-    tag: Annotated[str | None, typer.Option()] = None,
-    location: Annotated[str | None, typer.Option()] = None,
-    updated_after: Annotated[str | None, typer.Option("--updated-after")] = None,
-    limit: Annotated[int, typer.Option()] = 50,
+    id: Annotated[str | None, typer.Option("--id", help="Filter by document ID")] = None,
+    category: Annotated[str | None, typer.Option(help="article|email|rss|highlight|note|pdf|epub|tweet|video")] = None,
+    tag: Annotated[str | None, typer.Option(help="Filter by tag name")] = None,
+    location: Annotated[str | None, typer.Option(help="new|later|shortlist|archive|feed")] = "later",
+    updated_after: Annotated[str | None, typer.Option("--updated-after", help="ISO datetime (e.g. 2024-01-15 or 2024-01-15T10:30:00Z)")] = None,
+    limit: Annotated[int, typer.Option(help="Max documents to return")] = 50,
+    with_content: Annotated[bool, typer.Option("--with-content", help="Include html_content (article text, video transcript)")] = False,
 ) -> None:
     client: ReaderClient = ctx.obj["client"]
     params = DocumentListParams(
@@ -183,23 +186,24 @@ def docs_list(
         updated_after=parse_iso_datetime(updated_after) if updated_after else None,
     )
     docs = []
-    for idx, doc in enumerate(client.list_documents(params), start=1):
+    fields = DOCUMENT_FIELDS + ["html_content"] if with_content else DOCUMENT_FIELDS
+    for idx, doc in enumerate(client.list_documents(params, with_content=with_content), start=1):
         docs.append(doc)
         if limit and idx >= limit:
             break
-    print_result(docs, fields=DOCUMENT_FIELDS, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
+    print_result(docs, fields=fields, raw=ctx.obj["raw"], dry_run=ctx.obj["dry_run"])
 
 
 @docs_app.command("update")
 def docs_update(
     ctx: typer.Context,
-    document_id: Annotated[str, typer.Argument()],
-    title: Annotated[str | None, typer.Option()] = None,
-    summary: Annotated[str | None, typer.Option()] = None,
-    category: Annotated[str | None, typer.Option()] = None,
-    labels: Annotated[str | None, typer.Option()] = None,
-    tags: Annotated[str | None, typer.Option()] = None,
-    state: Annotated[str | None, typer.Option()] = None,
+    document_id: Annotated[str, typer.Argument(help="Document ID to update")],
+    title: Annotated[str | None, typer.Option(help="New title")] = None,
+    summary: Annotated[str | None, typer.Option(help="New summary")] = None,
+    category: Annotated[str | None, typer.Option(help="article|email|rss|highlight|note|pdf|epub|tweet|video")] = None,
+    labels: Annotated[str | None, typer.Option(help="Comma-separated labels (replaces existing)")] = None,
+    tags: Annotated[str | None, typer.Option(help="Comma-separated tags (replaces existing)")] = None,
+    state: Annotated[str | None, typer.Option(help="new|later|shortlist|archive (moves document)")] = None,
 ) -> None:
     client: ReaderClient = ctx.obj["client"]
     payload = DocumentUpdatePayload(
@@ -219,9 +223,9 @@ def docs_update(
 @docs_app.command("pull")
 def docs_pull(
     ctx: typer.Context,
-    location: Annotated[str | None, typer.Option()] = None,
-    since: Annotated[str | None, typer.Option()] = None,
-    limit: Annotated[int, typer.Option()] = 50,
+    location: Annotated[str | None, typer.Option(help="new|later|shortlist|archive|feed")] = None,
+    since: Annotated[str | None, typer.Option(help="ISO datetime (e.g. 2024-01-15 or 2024-01-15T10:30:00Z)")] = None,
+    limit: Annotated[int, typer.Option(help="Max documents to return")] = 50,
 ) -> None:
     client: ReaderClient = ctx.obj["client"]
     params = DocumentListParams(

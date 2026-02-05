@@ -371,34 +371,21 @@ def highlights_list() -> Any:
     )
 
 
-@app.route("/api/v2/export/", methods=["GET"])
-def highlights_export() -> Any:
+@app.route("/api/v2/review/", methods=["GET"])
+def daily_review() -> Any:
+    """Return daily review highlights (no parameters accepted)."""
     auth_error = require_auth()
     if auth_error:
         payload, status = auth_error
         return jsonify(payload), status
 
     highlights = list(STORE.highlights.values())
-    updated_after = parse_iso_datetime(request.args.get("updatedAfter", ""))
-    updated_before = parse_iso_datetime(request.args.get("updatedBefore", ""))
-    filtered: list[dict[str, Any]] = []
-    for highlight in highlights:
-        timestamp = parse_iso_datetime(highlight.get("highlighted_at") or highlight.get("updated") or "")
-        if not timestamp:
-            continue
-        if updated_after and timestamp <= updated_after:
-            continue
-        if updated_before and timestamp >= updated_before:
-            continue
-        filtered.append(highlight)
-    filtered.sort(key=lambda h: parse_iso_datetime(h.get("highlighted_at") or "") or datetime.min.replace(tzinfo=UTC))
-    limit = int(request.args.get("limit", 50))
-    limit = max(1, min(limit, 1000))
-    page_results = filtered[:limit]
-    next_cursor = None
-    if len(filtered) > limit:
-        next_cursor = f"cursor:{limit}"
-    return jsonify({"count": len(filtered), "results": page_results, "nextPageCursor": next_cursor})
+    return jsonify({
+        "review_id": 12345,
+        "review_url": "https://readwise.io/review/12345",
+        "review_completed": False,
+        "highlights": highlights[:10],
+    })
 
 
 @app.route("/api/v2/highlights/", methods=["POST"])

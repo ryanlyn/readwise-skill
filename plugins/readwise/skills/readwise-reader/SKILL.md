@@ -25,12 +25,37 @@ Use this skill to script workflows against the Readwise Reader product (saved ar
 
 ## CLI commands
 - `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise-reader/scripts/reader_client.py docs create --url <article> [--title ... --summary ... --tags ... --labels ... --generated --dry-run]` – creates a document via URL or raw HTML (`--content`). Reader API v3 does not support uploading local files directly.
-- `... docs list --category new --tag deep-work --limit 25` – paginated document listing with filters on id/category/tag/location/update time.
+- `... docs list [--location later] [--category article] [--tag deep-work] [--limit 25] [--id <doc-id>] [--with-content]` – paginated document listing. Defaults to `--location later`. Use `--id` to fetch a single document. Use `--with-content` to include `html_content` (article text, video transcripts).
 - `... docs update <id> [--state archive --tags "deep,focus" --title ...]` – patch metadata/state (`new`, `later`, `archive`). Supports `--dry-run`.
 - `... docs pull --since 2026-02-01` – fetches documents updated since a timestamp for recap/triage workflows.
 - `... auth validate` – confirms your token works by hitting the `/api/v2/auth/` endpoint.
 
+## Locations vs categories
+
+**Locations** describe where a document sits in your reading workflow:
+- `new` — inbox, freshly added items awaiting triage
+- `later` — saved for later reading (the default for `docs list`)
+- `shortlist` — prioritized for near-term reading
+- `archive` — finished or dismissed
+- `feed` — RSS/feed items not yet triaged
+
+**Categories** describe the content type:
+- `article`, `email`, `rss`, `highlight`, `note`, `pdf`, `epub`, `tweet`, `video`
+
+When a user asks for their "inbox" or "reading list", query `--location later` (the default). Use `--location new` only when specifically checking for untriaged items.
+
 Default output is human-readable markdown with only key fields. Use `--raw` to get full JSON with all fields.
+
+## Fetching content & transcripts
+Use `--with-content` to retrieve the full `html_content` field, which contains:
+- **Articles**: full article text as HTML
+- **Videos**: auto-generated transcript (for YouTube videos with captions)
+- **PDFs/EPUBs**: extracted text content
+
+This is disabled by default to keep responses fast. When you need to analyze, summarize, or extract quotes from a document, fetch it by ID with content:
+```
+... docs list --id <doc-id> --with-content --raw
+```
 
 ## Data guidance
 - **Generated entries**: set `--generated` when saving synthetic journal entries or agent summaries. The CLI appends `.generated` to tags (and labels, when provided) so they are searchable in Reader.

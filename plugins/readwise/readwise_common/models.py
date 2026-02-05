@@ -43,9 +43,9 @@ class HighlightListParams(BaseModel):
 
 
 class DailyReviewParams(BaseModel):
-    updated_after: str | None = None
-    updated_before: str | None = None
-    limit: int = 50
+    """Placeholder for /review/ endpoint which takes no parameters."""
+
+    pass
 
 
 class BookListParams(BaseModel):
@@ -115,12 +115,36 @@ class Book(BaseModel):
     num_highlights: int | None = None
 
 
-class DailyReviewResponse(BaseModel):
+class DailyReviewHighlight(BaseModel):
+    """Highlight returned by the /review/ endpoint."""
+
     model_config = ConfigDict(extra="allow")
 
-    count: int | None = None
-    results: list[Highlight] = []
-    nextPageCursor: str | None = None
+    id: int | None = None
+    text: str | None = None
+    note: str | None = None
+    title: str | None = None
+    author: str | None = None
+    source_url: str | None = None
+    source_type: str | None = None
+    category: str | None = None
+    location: int | str | None = None
+    location_type: str | None = None
+    highlighted_at: str | None = None
+    highlight_url: str | None = None
+    image_url: str | None = None
+    tags: list[Any] | None = None
+
+
+class DailyReviewResponse(BaseModel):
+    """Response from the /review/ endpoint."""
+
+    model_config = ConfigDict(extra="allow")
+
+    review_id: int | None = None
+    review_url: str | None = None
+    review_completed: bool | None = None
+    highlights: list[DailyReviewHighlight] = []
 
 
 class Document(BaseModel):
@@ -133,7 +157,8 @@ class Document(BaseModel):
     author: str | None = None
     location: str | None = None
     category: str | None = None
-    tags: dict[str, str] | list[str] | None = None
+    tags: dict[str, Any] | list[str] | None = None
+    html_content: str | None = None
 
 
 class DocumentSaveResponse(BaseModel):

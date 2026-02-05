@@ -9,7 +9,6 @@ import pytest
 from readwise_common.formatting import render_highlights, select_fields
 from readwise_common.models import (
     BookListParams,
-    DailyReviewParams,
     HighlightCreatePayload,
     HighlightListParams,
     HighlightUpdatePayload,
@@ -83,17 +82,11 @@ def test_highlights_paginate_with_cursor(readwise_client: ReadwiseClient) -> Non
     assert len({item.id for item in highlights}) == len(highlights)
 
 
-def test_daily_review_filters_by_date(readwise_client: ReadwiseClient) -> None:
-    params = DailyReviewParams(updated_after="2020-12-31T00:00:00+00:00", limit=10)
-    response = readwise_client.daily_review(params)
-    results = response.results
-    assert results
-
-    def _parse(ts: str) -> datetime:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-
-    cutoff = datetime.fromisoformat("2020-12-31T00:00:00+00:00")
-    assert all(_parse(item.highlighted_at) > cutoff for item in results)
+def test_daily_review_returns_highlights(readwise_client: ReadwiseClient) -> None:
+    response = readwise_client.daily_review()
+    assert response.review_id is not None
+    assert response.highlights
+    assert all(h.text is not None for h in response.highlights)
 
 
 def test_get_book_detail(readwise_client: ReadwiseClient) -> None:

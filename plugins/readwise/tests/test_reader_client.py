@@ -115,7 +115,7 @@ def test_reader_pull_accepts_date_only(reader_client: ReaderClient, capsys: pyte
 def test_reader_list_accepts_date_only(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/listdate/{uuid4().hex}"
     reader_client.create_document(DocumentCreatePayload(url=unique_url, title="ListDate Test"))
-    reader_main(["docs", "list", "--updated-after", "2020-01-01", "--limit", "5"])
+    reader_main(["docs", "list", "--location", "new", "--updated-after", "2020-01-01", "--limit", "5"])
     captured = capsys.readouterr()
     assert "ListDate Test" in captured.out
 
@@ -123,16 +123,16 @@ def test_reader_list_accepts_date_only(reader_client: ReaderClient, capsys: pyte
 def test_reader_default_output_is_trimmed(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/trimmed/{uuid4().hex}"
     reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Trimmed Doc"))
-    reader_main(["docs", "list", "--limit", "5"])
+    reader_main(["docs", "list", "--location", "new", "--limit", "5"])
     captured = capsys.readouterr()
     assert "Trimmed Doc" in captured.out
-    assert "source_url" not in captured.out
+    assert "created_at" not in captured.out  # created_at is not in DOCUMENT_FIELDS
 
 
 def test_reader_raw_flag_outputs_full_json(reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]) -> None:
     unique_url = f"https://example.com/rawtest/{uuid4().hex}"
     reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Raw Doc"))
-    reader_main(["--raw", "docs", "list", "--limit", "5"])
+    reader_main(["--raw", "docs", "list", "--location", "new", "--limit", "5"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert isinstance(data, list)
