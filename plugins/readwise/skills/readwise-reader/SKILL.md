@@ -1,6 +1,11 @@
 ---
 name: readwise-reader
-description: "Automate the Readwise Reader API for ingesting documents, syncing annotations, and orchestrating triage inside the Reader app. Use when tasks involve the Reader endpoints (articles, RSS, documents, read states)."
+description: >-
+  This skill should be used when the user asks to "save an article to Reader",
+  "save this URL to Readwise Reader", "show my Reader inbox", "list my Reader documents",
+  "archive a document in Reader", "triage my reading list", "pull recent Reader updates",
+  "check what's new in Reader", "validate my Readwise token for Reader",
+  or needs guidance on the Readwise Reader API (documents, articles, RSS, read states).
 allowed-tools: Bash(uv run *)
 ---
 

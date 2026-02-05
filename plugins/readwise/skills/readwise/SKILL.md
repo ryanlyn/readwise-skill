@@ -1,6 +1,11 @@
 ---
 name: readwise
-description: "Interact with the Readwise Original API for syncing highlights, exporting notes, and managing books/authors. Use whenever tasks require the legacy Readwise endpoints (not the Reader app)."
+description: >-
+  This skill should be used when the user asks to "save a highlight to Readwise",
+  "create a Readwise highlight", "show my Readwise books", "list highlights from a book",
+  "review my daily highlights", "find highlights tagged with", "tag a highlight",
+  "delete a highlight", "validate my Readwise token", "export highlights as markdown",
+  or needs guidance on the Readwise Original API (highlights, books, daily review).
 allowed-tools: Bash(uv run *)
 ---
 
