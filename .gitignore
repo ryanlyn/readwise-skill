@@ -16,6 +16,9 @@ venv/
 
 *.egg-info/
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # macOS
 .DS_Store
 

@@ -41,3 +41,7 @@ uv run pytest tests/ -v
   # Wrong — will fail
   ... highlight create --text "..." --dry-run
   ```
+- **Format and lint** after making changes:
+  ```bash
+  uv run ruff check --fix . && uv run ruff format .
+  ```
