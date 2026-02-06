@@ -2,6 +2,20 @@
 
 A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for automating [Readwise](https://readwise.io) workflows — syncing highlights, managing documents, and streamlining your reading pipeline.
 
+## Getting started
+
+```
+/plugin marketplace add ryanlyn/readwise-skill
+/plugin install readwise@readwise-skill
+```
+
+Set your token from https://readwise.io/access_token:
+```
+export READWISE_TOKEN=<your-token>
+```
+
+Verify by asking Claude *"Validate my Readwise token"*.
+
 ## What you can do
 
 **Readwise** — query highlights, save quotes, daily review
@@ -51,23 +65,6 @@ Key quotes:
 > Save #1 and #2 to Readwise
 Done. Saved 2 highlights to Readwise.
 ```
-
-## Getting started
-
-**Prerequisites:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and a [Readwise](https://readwise.io) account.
-
-**Install the plugin:**
-```
-/plugin marketplace add ryanlyn/readwise-skill
-/plugin install readwise@readwise-skill
-```
-
-**Set your token** from https://readwise.io/access_token as part of your shell environment or before running Claude Code:
-```
-export READWISE_TOKEN=<your-token>
-```
-
-**Verify:** Ask Claude *"Validate my Readwise token"* to confirm it's working.
 
 ## Examples
 
