@@ -96,6 +96,25 @@ def test_reader_validate_token(reader_client: ReaderClient) -> None:
     reader_client.validate_token()
 
 
+def test_reader_raw_flag_works_after_subcommand(
+    reader_client: ReaderClient, capsys: pytest.CaptureFixture[str]
+) -> None:
+    unique_url = f"https://example.com/trailing-raw/{uuid4().hex}"
+    reader_client.create_document(DocumentCreatePayload(url=unique_url, title="Trailing Raw"))
+    reader_main(["docs", "list", "--location", "new", "--limit", "5", "--raw"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert isinstance(data, list)
+    assert any(doc["title"] == "Trailing Raw" for doc in data)
+
+
+def test_reader_dry_run_flag_works_after_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
+    reader_main(["docs", "create", "--url", "https://example.com/trailing-dry", "--title", "Dry", "--dry-run"])
+    captured = capsys.readouterr()
+    assert "dry_run" in captured.out
+    assert "trailing-dry" in captured.out
+
+
 def test_reader_dry_run_create_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
     reader_main(["--dry-run", "docs", "create", "--url", "https://example.com/dry", "--title", "Dry"])
     captured = capsys.readouterr()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Iterable
 from typing import Annotated, Any
 
@@ -26,6 +27,7 @@ from readwise_common import (
     request_with_backoff,
 )
 from readwise_common.http import APIRequestError
+from readwise_common.utils import hoist_global_options
 
 DOCUMENT_FIELDS = ["id", "source_url", "title", "category", "location", "word_count", "reading_progress", "tags"]
 
@@ -277,7 +279,8 @@ def auth_validate(ctx: typer.Context) -> None:
 def main(argv: Iterable[str] | None = None) -> int:
     """Entry point preserving the existing main(argv) interface for tests."""
     try:
-        app(list(argv) if argv is not None else None, standalone_mode=False)
+        args = hoist_global_options(list(argv) if argv is not None else sys.argv[1:])
+        app(args, standalone_mode=False)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 1
     return 0

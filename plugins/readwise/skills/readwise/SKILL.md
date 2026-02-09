@@ -25,15 +25,7 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 
 ## CLI commands
 
-**Global options** (`--dry-run`, `--raw`) must come BEFORE the subcommand:
-```bash
-# Correct — global options before subcommand
-... --dry-run highlight create --text "..."
-... --raw highlights list --book-id 123
-
-# Wrong — will fail with "No such option"
-... highlight create --text "..." --dry-run
-```
+Global options `--dry-run` and `--raw` can appear anywhere in the command.
 
 - `uv run --project ${CLAUDE_PLUGIN_ROOT} python ${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py [--dry-run] [--raw] highlight create --text ... [--book-id ID] [--title ...] [--author ...] [--category ...] [--image-url ...] [--generated] [--tags t1,t2]`
   Creates a highlight or batch (`--bulk-file ndjson`). Use `--book-id` to target an existing book (the CLI resolves it to title/author/category for the API). **Always specify `--category`** when creating new sources—see "Category is critical" below. Use `--image-url` for cover images (recommended for `books` and `podcasts`, not needed for `articles` or `tweets`). If `--generated` is set, `.generated` is appended to tags and `location_type` defaults to `none`.
@@ -46,7 +38,7 @@ Use this skill to automate work with the Readwise "Original" API that powers hig
 - `... book <id>` – fetch a single book's metadata.
 - `... auth validate` – confirms your token works by hitting the `/api/v2/auth/` endpoint.
 
-Default output is human-readable markdown with only key fields. Use `--raw` (before the subcommand) to get full JSON with all fields.
+Default output is human-readable markdown with only key fields. Use `--raw` to get full JSON with all fields.
 
 ## Disambiguating book matches
 
@@ -98,7 +90,7 @@ Mismatched categories create duplicate book entries and break the user's library
 - **Generated snippets**: Use `--generated` ONLY for highlights that are NOT verbatim quotes from the source content—e.g., AI-generated summaries, paraphrases, or synthesized insights. Do NOT use it for actual quotes or excerpts copied directly from the text. The CLI injects `.generated` for discoverability and sets `location_type=none` since generated content has no source location. Generated highlights should still use the SAME (title, author, source_url) as verbatim highlights from the same source.
 - **Highlight text**: supply `--text`, `--text-file`, or pipe content via stdin. The CLI refuses to guess. Bulk imports accept NDJSON rows with `text`, `title`, and `tags`.
 - **Location best practices**: omit `--location` unless you can provide an absolute, client-agnostic reference (page number, character offset). When `--location` is omitted the payload leaves `location` blank so Readwise can reconcile it later. Valid `--location-type` values: `page` (books), `time_offset` (podcasts/videos), `order` (articles). For generated quotes the CLI defaults to `location_type=none`.
-- **Dry runs**: add `--dry-run` BEFORE the subcommand (e.g., `... --dry-run highlight create ...`) to print the exact payload without calling the API. Dry-run output always shows the full payload (no field filtering).
+- **Dry runs**: add `--dry-run` to print the exact payload without calling the API. Dry-run output always shows the full payload (no field filtering).
 
 ## Scripts
 - `${CLAUDE_PLUGIN_ROOT}/skills/readwise/scripts/readwise_client.py`: full-featured CLI covering highlight create/read/update, daily review, and books list/detail. Commands surface remaining rate-limit headers when provided so agents can throttle work.

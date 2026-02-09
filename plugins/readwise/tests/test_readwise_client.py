@@ -12,6 +12,7 @@ from readwise_common.models import (
     HighlightListParams,
     HighlightUpdatePayload,
 )
+from readwise_common.utils import hoist_global_options
 from skills.readwise.scripts.readwise_client import ReadwiseClient
 from skills.readwise.scripts.readwise_client import main as readwise_main
 
@@ -254,6 +255,24 @@ def test_highlight_update_with_tags(readwise_client: ReadwiseClient) -> None:
     assert "retrospective" in tag_names
 
 
+class TestHoistGlobalOptions:
+    def test_flags_already_before_subcommand(self) -> None:
+        assert hoist_global_options(["--raw", "books"]) == ["--raw", "books"]
+
+    def test_flags_moved_from_end(self) -> None:
+        assert hoist_global_options(["books", "--raw"]) == ["--raw", "books"]
+
+    def test_multiple_flags_moved(self) -> None:
+        result = hoist_global_options(["highlight", "create", "--text", "x", "--raw", "--dry-run"])
+        assert result == ["--raw", "--dry-run", "highlight", "create", "--text", "x"]
+
+    def test_no_flags(self) -> None:
+        assert hoist_global_options(["books", "--title", "foo"]) == ["books", "--title", "foo"]
+
+    def test_empty(self) -> None:
+        assert hoist_global_options([]) == []
+
+
 class TestFormatInlineTags:
     def test_basic(self) -> None:
         from readwise_common.utils import format_inline_tags
@@ -360,6 +379,21 @@ def test_highlights_list_uses_blockquote_format(capsys: pytest.CaptureFixture[st
 
 def test_readwise_validate_token(readwise_client: ReadwiseClient) -> None:
     readwise_client.validate_token()
+
+
+def test_raw_flag_works_after_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["books", "--title", "meditations", "--raw"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert isinstance(data, list)
+    assert any(book["title"] == "Meditations" for book in data)
+
+
+def test_dry_run_flag_works_after_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
+    readwise_main(["highlight", "create", "--text", "trailing flag test", "--title", "T", "--dry-run"])
+    captured = capsys.readouterr()
+    assert "dry_run" in captured.out
+    assert "trailing flag test" in captured.out
 
 
 def test_falsy_fields_omitted_in_markdown(capsys: pytest.CaptureFixture[str]) -> None:

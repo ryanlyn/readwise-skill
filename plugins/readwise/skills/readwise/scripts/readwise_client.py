@@ -33,7 +33,7 @@ from readwise_common import (
     resolve_highlight_text,
 )
 from readwise_common.http import APIRequestError
-from readwise_common.utils import load_bulk_payloads
+from readwise_common.utils import hoist_global_options, load_bulk_payloads
 
 HIGHLIGHT_FIELDS = ["id", "text", "note", "tags"]
 BOOK_FIELDS = ["id", "title", "author", "category", "source", "num_highlights"]
@@ -515,7 +515,8 @@ def auth_validate(ctx: typer.Context) -> None:
 def main(argv: Iterable[str] | None = None) -> int:
     """Entry point preserving the existing main(argv) interface for tests."""
     try:
-        app(list(argv) if argv is not None else None, standalone_mode=False)
+        args = hoist_global_options(list(argv) if argv is not None else sys.argv[1:])
+        app(args, standalone_mode=False)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 1
     return 0

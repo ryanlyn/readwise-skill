@@ -74,6 +74,25 @@ def load_bulk_payloads(path: str) -> Iterable[dict]:
         yield json.loads(stripped)
 
 
+GLOBAL_FLAGS = frozenset({"--raw", "--dry-run"})
+
+
+def hoist_global_options(argv: list[str]) -> list[str]:
+    """Move global flags (--raw, --dry-run) before subcommands.
+
+    Typer only recognises callback-level options when they appear before the
+    subcommand token. This helper lets callers place them anywhere.
+    """
+    hoisted = []
+    rest = []
+    for arg in argv:
+        if arg in GLOBAL_FLAGS:
+            hoisted.append(arg)
+        else:
+            rest.append(arg)
+    return hoisted + rest
+
+
 def parse_iso_datetime(value: str) -> str:
     raw = value.strip()
     if not raw:
