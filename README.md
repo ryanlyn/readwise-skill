@@ -6,7 +6,7 @@ Shines when working across your entire library - extracting quotes from transcri
 
 ## What you can do
 
-The basics work as you'd expect - search highlights, daily review, save articles. The interesting part is what becomes possible when your agent can read and write across your whole library:
+The basics work as you'd expect - search highlights, daily review, save articles. The interesting part is what becomes possible when your agent can read and write across your whole library.
 
 Visualize the structure of a Paul Graham essay saved in Reader:
 
