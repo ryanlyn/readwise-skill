@@ -8,13 +8,13 @@ Shines when working across your entire library - extracting quotes from transcri
 
 The basics work as you'd expect - search highlights, daily review, save articles. The interesting part is what becomes possible when your agent can read and write across your whole library:
 
-`Get "How to Do Great Work" from my Reader and visualise the main themes as overlapping timelines, ascii`:
+Visualize the structure of a Paul Graham essay saved in Reader:
 
 <p align="center">
   <img src="assets/how-to-do-great-work.png" alt="ASCII theme timeline of Paul Graham's How to Do Great Work" width="600">
 </p>
 
-`Save this to Reader, get the transcript, suggest quotes, save them to Readwise, and archive` - all in one conversation:
+Save a video, extract quotes, and archive - all in one conversation:
 ```
 > Save this to Reader: https://www.youtube.com/watch?v=OfMAtaocvJw
 Done. Saved "The third golden age of software engineering" to Reader.
@@ -30,7 +30,7 @@ Here are 3 quotes that challenge conventional thinking:
 Done. Saved 2 highlights to Readwise and archived the document in Reader.
 ```
 
-`What are my latest unread Reader docs?`
+Check your reading list:
 ```
 > What are my latest unread Reader docs?
 
@@ -43,7 +43,7 @@ Done. Saved 2 highlights to Readwise and archived the document in Reader.
 ... (7 more)
 ```
 
-`What are my latest RSS articles? Rank by novelty` - triage your feed, then save what matters:
+Triage your feed, then save what matters:
 ```
 > What are my latest RSS articles? Rank by novelty.
 
