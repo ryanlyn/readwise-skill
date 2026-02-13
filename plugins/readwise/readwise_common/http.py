@@ -77,14 +77,12 @@ def request_with_backoff(
                 response.raise_for_status()
                 return response
 
+            backoff = BACKOFF_BASE**attempt
             retry_after = response.headers.get("Retry-After")
-            if retry_after:
-                try:
-                    sleep_for = float(retry_after)
-                except ValueError:
-                    sleep_for = BACKOFF_BASE**attempt
-            else:
-                sleep_for = BACKOFF_BASE**attempt
+            try:
+                sleep_for = float(retry_after) if retry_after else backoff
+            except ValueError:
+                sleep_for = backoff
             sleep_for += random.uniform(0, JITTER)
             rate_notice = _format_rate_limit_notice(response.headers)
             if rate_notice:

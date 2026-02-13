@@ -12,7 +12,7 @@ from readwise_common.models import (
     HighlightListParams,
     HighlightUpdatePayload,
 )
-from readwise_common.utils import hoist_global_options
+from readwise_common.utils import format_inline_tags, hoist_global_options
 from skills.readwise.scripts.readwise_client import ReadwiseClient
 from skills.readwise.scripts.readwise_client import main as readwise_main
 
@@ -54,13 +54,6 @@ def test_highlight_crud_flow(readwise_client: ReadwiseClient) -> None:
     assert highlight_id not in remaining_ids
 
 
-def test_books_list(readwise_client: ReadwiseClient) -> None:
-    books = list(readwise_client.list_books(BookListParams()))
-    titles = {book.title for book in books}
-    assert "Meditations" in titles
-    assert "Design Systems and Team Flow" in titles
-
-
 def test_get_highlight(readwise_client: ReadwiseClient) -> None:
     highlight = readwise_client.get_highlight(13)
     assert highlight.id == 13
@@ -95,10 +88,12 @@ def test_get_book_detail(readwise_client: ReadwiseClient) -> None:
     assert book.author == "Marcus Aurelius"
 
 
-def test_books_paginate_with_cursor(readwise_client: ReadwiseClient) -> None:
+def test_books_list_and_pagination(readwise_client: ReadwiseClient) -> None:
     books = list(readwise_client.list_books(BookListParams()))
     assert len(books) >= 2
-    assert {book.title for book in books} >= {"Meditations", "Design Systems and Team Flow"}
+    titles = {book.title for book in books}
+    assert "Meditations" in titles
+    assert "Design Systems and Team Flow" in titles
 
 
 def test_books_author_filter(capsys: pytest.CaptureFixture[str]) -> None:
@@ -130,7 +125,7 @@ def test_book_id_resolves_to_title_author(capsys: pytest.CaptureFixture[str]) ->
     assert "book_id" not in captured.out
 
 
-def test_dry_run_outputs_once(capsys: pytest.CaptureFixture[str]) -> None:
+def test_dry_run_create_outputs_payload_once(capsys: pytest.CaptureFixture[str]) -> None:
     readwise_main(["--dry-run", "highlight", "create", "--text", "dry run test", "--title", "DryBook"])
     captured = capsys.readouterr()
     lines = [line for line in captured.out.strip().splitlines() if line.strip()]
@@ -150,8 +145,6 @@ def test_dry_run_delete_no_side_effects(readwise_client: ReadwiseClient, capsys:
 
 
 def test_highlight_create_with_tags(readwise_client: ReadwiseClient) -> None:
-    from readwise_common.utils import format_inline_tags
-
     note_with_tags = format_inline_tags(["focus", "review"])
     payload = HighlightCreatePayload(
         text="Tagged highlight",
@@ -186,8 +179,6 @@ def test_highlight_create_generated_tags(capsys: pytest.CaptureFixture[str]) -> 
 
 
 def test_highlight_create_tags_and_note(readwise_client: ReadwiseClient) -> None:
-    from readwise_common.utils import format_inline_tags
-
     note_with_tags = format_inline_tags(["focus", ".generated"], "My personal note")
     payload = HighlightCreatePayload(
         text="Highlight with note and tags",
@@ -275,24 +266,16 @@ class TestHoistGlobalOptions:
 
 class TestFormatInlineTags:
     def test_basic(self) -> None:
-        from readwise_common.utils import format_inline_tags
-
         assert format_inline_tags(["focus", "review"]) == ".focus .review"
 
     def test_with_note(self) -> None:
-        from readwise_common.utils import format_inline_tags
-
         result = format_inline_tags(["focus"], "My note")
         assert result == ".focus\nMy note"
 
     def test_preserves_dot_prefix(self) -> None:
-        from readwise_common.utils import format_inline_tags
-
         assert format_inline_tags([".generated", "focus"]) == ".generated .focus"
 
     def test_empty(self) -> None:
-        from readwise_common.utils import format_inline_tags
-
         assert format_inline_tags([]) == ""
         assert format_inline_tags([], "note") == "note"
 
@@ -334,13 +317,6 @@ def test_raw_flag_outputs_full_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert "cover_image_url" in book
 
 
-def test_dry_run_skips_field_filtering(capsys: pytest.CaptureFixture[str]) -> None:
-    readwise_main(["--dry-run", "highlight", "create", "--text", "test", "--title", "DryBook"])
-    captured = capsys.readouterr()
-    assert "dry_run" in captured.out
-    assert "request_payload" in captured.out
-
-
 class TestRenderHighlights:
     def test_blockquoted_text(self) -> None:
         highlights = [{"text": "Some quote", "note": "", "tags": []}]
@@ -379,21 +355,6 @@ def test_highlights_list_uses_blockquote_format(capsys: pytest.CaptureFixture[st
 
 def test_readwise_validate_token(readwise_client: ReadwiseClient) -> None:
     readwise_client.validate_token()
-
-
-def test_raw_flag_works_after_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
-    readwise_main(["books", "--title", "meditations", "--raw"])
-    captured = capsys.readouterr()
-    data = json.loads(captured.out)
-    assert isinstance(data, list)
-    assert any(book["title"] == "Meditations" for book in data)
-
-
-def test_dry_run_flag_works_after_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
-    readwise_main(["highlight", "create", "--text", "trailing flag test", "--title", "T", "--dry-run"])
-    captured = capsys.readouterr()
-    assert "dry_run" in captured.out
-    assert "trailing flag test" in captured.out
 
 
 READWISE_COMMAND_MATRIX = [

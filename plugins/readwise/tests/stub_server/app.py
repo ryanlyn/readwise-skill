@@ -66,6 +66,43 @@ def _parse_cursor(value: str | None) -> int:
         return 0
 
 
+def _paginate_v2(items: list[Any], base_path: str) -> dict[str, Any]:
+    """Shared pagination for Readwise v2-style endpoints (highlights, books)."""
+    page_size = int(request.args.get("page_size", 100))
+    page_size = max(1, min(page_size, 1000))
+    cursor = _parse_cursor(request.args.get("pageCursor"))
+    if cursor == 0:
+        page = request.args.get("page")
+        if page:
+            try:
+                cursor = (max(int(page), 1) - 1) * page_size
+            except ValueError:
+                cursor = 0
+
+    page_results = items[cursor : cursor + page_size]
+    next_cursor = f"cursor:{cursor + page_size}" if cursor + page_size < len(items) else None
+    prev_cursor = f"cursor:{max(cursor - page_size, 0)}" if cursor > 0 else None
+
+    def _cursor_url(raw: str | None) -> str | None:
+        if raw is None:
+            return None
+        try:
+            offset = int(raw.split(":", 1)[-1])
+        except ValueError:
+            return None
+        pg = offset // page_size + 1
+        return f"http://localhost:3000{base_path}?page={pg}&page_size={page_size}"
+
+    return {
+        "count": len(items),
+        "next": _cursor_url(next_cursor),
+        "previous": _cursor_url(prev_cursor),
+        "results": page_results,
+        "nextPageCursor": next_cursor,
+        "previousPageCursor": prev_cursor,
+    }
+
+
 @dataclass
 class Store:
     documents: dict[str, dict[str, Any]]
@@ -180,11 +217,7 @@ def reader_list() -> Any:
     if updated_after:
         cutoff = parse_iso_datetime(updated_after)
         if cutoff:
-            docs = [
-                doc
-                for doc in docs
-                if parse_iso_datetime(doc.get("updated_at")) and parse_iso_datetime(doc.get("updated_at")) > cutoff
-            ]
+            docs = [doc for doc in docs if (updated := parse_iso_datetime(doc.get("updated_at"))) and updated > cutoff]
 
     location = request.args.get("location")
     if location:
@@ -327,48 +360,7 @@ def highlights_list() -> Any:
     if book_id:
         highlights = [h for h in highlights if str(h.get("book_id")) == book_id]
 
-    page_size = int(request.args.get("page_size", 100))
-    page_size = max(1, min(page_size, 1000))
-    cursor = _parse_cursor(request.args.get("pageCursor"))
-    if cursor == 0:
-        page = request.args.get("page")
-        if page:
-            try:
-                page_num = max(int(page), 1)
-                cursor = (page_num - 1) * page_size
-            except ValueError:
-                cursor = 0
-    page_results = highlights[cursor : cursor + page_size]
-    next_cursor = None
-    if cursor + page_size < len(highlights):
-        next_cursor = f"cursor:{cursor + page_size}"
-    prev_cursor = None
-    if cursor > 0:
-        prev_cursor = f"cursor:{max(cursor - page_size, 0)}"
-
-    def _cursor_to_page(offset: int) -> int:
-        return offset // page_size + 1
-
-    def _cursor_url(offset: str | None) -> str | None:
-        if offset is None:
-            return None
-        try:
-            numeric = int(offset.split(":", 1)[-1])
-        except ValueError:
-            return None
-        page = _cursor_to_page(numeric)
-        return f"http://localhost:3000/api/v2/highlights/?page={page}&page_size={page_size}"
-
-    return jsonify(
-        {
-            "count": len(highlights),
-            "next": _cursor_url(next_cursor),
-            "previous": _cursor_url(prev_cursor),
-            "results": page_results,
-            "nextPageCursor": next_cursor,
-            "previousPageCursor": prev_cursor,
-        }
-    )
+    return jsonify(_paginate_v2(highlights, "/api/v2/highlights/"))
 
 
 @app.route("/api/v2/review/", methods=["GET"])
@@ -494,49 +486,7 @@ def books_list() -> Any:
         return jsonify(payload), status
 
     books = list(STORE.books.values())
-    page_size = int(request.args.get("page_size", 100))
-    page_size = max(1, min(page_size, 1000))
-    cursor = _parse_cursor(request.args.get("pageCursor"))
-    if cursor == 0:
-        page = request.args.get("page")
-        if page:
-            try:
-                page_num = max(int(page), 1)
-                cursor = (page_num - 1) * page_size
-            except ValueError:
-                cursor = 0
-
-    page_results = books[cursor : cursor + page_size]
-    next_cursor = None
-    if cursor + page_size < len(books):
-        next_cursor = f"cursor:{cursor + page_size}"
-    prev_cursor = None
-    if cursor > 0:
-        prev_cursor = f"cursor:{max(cursor - page_size, 0)}"
-
-    def _cursor_to_page(offset: int) -> int:
-        return offset // page_size + 1
-
-    def _cursor_url(offset: str | None) -> str | None:
-        if offset is None:
-            return None
-        try:
-            numeric = int(offset.split(":", 1)[-1])
-        except ValueError:
-            return None
-        page = _cursor_to_page(numeric)
-        return f"http://localhost:3000/api/v2/books/?page={page}&page_size={page_size}"
-
-    return jsonify(
-        {
-            "count": len(books),
-            "next": _cursor_url(next_cursor),
-            "previous": _cursor_url(prev_cursor),
-            "results": page_results,
-            "nextPageCursor": next_cursor,
-            "previousPageCursor": prev_cursor,
-        }
-    )
+    return jsonify(_paginate_v2(books, "/api/v2/books/"))
 
 
 @app.route("/api/v2/books/<int:book_id>/", methods=["GET"])
