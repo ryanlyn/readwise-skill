@@ -16,6 +16,42 @@ export READWISE_TOKEN=<your-token>
 
 Verify by asking Claude *"Validate my Readwise token"*.
 
+## Codex installation
+
+Install both skills from zip artifacts:
+
+1. Get the zip files (`readwise-<version>.zip` and `readwise-reader-<version>.zip`).
+2. Unzip them into your Codex skills directory.
+3. Restart Codex.
+4. Ask Codex to run a quick auth check.
+
+```bash
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+unzip -o readwise-<version>.zip -d "$CODEX_HOME/skills"
+unzip -o readwise-reader-<version>.zip -d "$CODEX_HOME/skills"
+ls "$CODEX_HOME/skills/readwise/SKILL.md" "$CODEX_HOME/skills/readwise-reader/SKILL.md"
+```
+
+After restarting Codex, run:
+
+```
+Validate my Readwise token
+```
+
+### Build from source (maintainers)
+
+Build the Codex zip artifacts locally:
+
+```bash
+python3 scripts/build_codex_dist.py --clean
+```
+
+Verify artifacts before publishing:
+
+```bash
+scripts/verify_codex_dist.sh
+```
+
 ## What you can do
 
 **Readwise** — query highlights, save quotes, daily review

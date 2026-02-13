@@ -27,5 +27,8 @@ venv/
 .vscode/
 *.code-workspace
 
+# Build artifacts
+dist/
+
 # Generated skill artifacts
 **/agents/openai.yaml

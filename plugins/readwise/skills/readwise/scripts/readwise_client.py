@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Comprehensive CLI for interacting with the Readwise Original API."""
 
 from __future__ import annotations
@@ -5,10 +6,16 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Annotated, Any
 
 import requests
 import typer
+
+for parent in Path(__file__).resolve().parents:
+    if (parent / "readwise_common").is_dir():
+        sys.path.insert(0, str(parent))
+        break
 
 from readwise_common import (
     Book,

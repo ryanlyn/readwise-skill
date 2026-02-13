@@ -26,3 +26,19 @@ jobs:
       - uses: astral-sh/setup-uv@v4
       - run: uv sync --extra dev
       - run: uv run pytest tests/ -v
+
+  publish-codex-zips:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: scripts/verify_codex_dist.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-zips-${{ github.sha }}
+          path: dist/codex/*.zip
+          if-no-files-found: error

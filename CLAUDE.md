@@ -22,6 +22,26 @@ uv sync --extra dev
 uv run pytest tests/ -v
 ```
 
+## Codex distribution
+
+Build standalone Codex skill zips:
+
+```bash
+python3 scripts/build_codex_dist.py --clean
+```
+
+Run packaging verification (build + unzip + CLI startup checks):
+
+```bash
+scripts/verify_codex_dist.sh
+```
+
+Artifacts are written to `dist/codex/`:
+- `readwise-<version>.zip`
+- `readwise-reader-<version>.zip`
+
+CI publishes these zip artifacts on pushes to `main` after verification passes.
+
 ### Development tips
 
 - **Use local files**: when working in this repo, always run CLIs from here rather than the installed plugin cache:
