@@ -8,6 +8,12 @@ Shines when working across your entire library - extracting quotes from transcri
 
 The basics work as you'd expect - search highlights, daily review, save articles. The interesting part is what becomes possible when your agent can read and write across your whole library:
 
+`Get "How to Do Great Work" from my Reader and visualise the main themes as overlapping timelines, ascii`:
+
+<p align="center">
+  <img src="assets/how-to-do-great-work.png" alt="ASCII theme timeline of Paul Graham's How to Do Great Work" width="600">
+</p>
+
 `Save this to Reader, get the transcript, suggest quotes, save them to Readwise, and archive` - all in one conversation:
 ```
 > Save this to Reader: https://www.youtube.com/watch?v=OfMAtaocvJw
@@ -53,20 +59,6 @@ Low novelty:
 > Save #1 and #2 to Readwise
 Done. Saved 2 highlights to Readwise.
 ```
-
-Build on what you've read - generate visualizations, interactive demos, or cross-book analysis from your library:
-
-`Visualise the main themes as overlapping timelines in the article, ascii` - from a Paul Graham essay saved in Reader:
-
-<p align="center">
-  <img src="assets/how-to-do-great-work.png" alt="ASCII theme timeline of Paul Graham's How to Do Great Work" width="600">
-</p>
-
-`Now animate each theme entering and exiting over the essay's structure`:
-
-<p align="center">
-  <video src="https://github.com/ryanlyn/readwise-skill/raw/main/assets/when-to-do-what-you-love.mp4" width="600"></video>
-</p>
 
 ```
 > Pull my highlights from "Thinking in Systems" and create an Excalidraw
@@ -116,7 +108,7 @@ Codex looks for skills in `$CODEX_HOME/skills/` (default `~/.codex/skills/`). St
 
 ### Verify
 
-Ask your agent: *"Validate my Readwise token"*
+Ask your agent: `Validate my Readwise token`
 
 ## Privacy & data
 
@@ -124,8 +116,16 @@ Your Readwise access token grants full read/write access to your account. This p
 
 ## Uninstall
 
+**Claude Code:**
 ```
 /plugin uninstall readwise@readwise-skill
+```
+
+**Claude Desktop / Cowork:** Remove the plugin from Plugins.
+
+**Codex:**
+```bash
+rm -r "$CODEX_HOME/skills/readwise" "$CODEX_HOME/skills/readwise-reader"
 ```
 
 ## Development
