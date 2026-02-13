@@ -156,3 +156,22 @@ def test_reader_raw_flag_outputs_full_json(reader_client: ReaderClient, capsys: 
     data = json.loads(captured.out)
     assert isinstance(data, list)
     assert any(doc["title"] == "Raw Doc" for doc in data)
+
+
+READER_COMMAND_MATRIX = [
+    ["docs", "create", "--url", "https://example.com/matrix", "--title", "Matrix Doc"],
+    ["docs", "list", "--location", "new", "--limit", "1"],
+    ["docs", "update", "01gkqtdz9xabcd5gt96khreyb", "--title", "Updated Matrix Doc"],
+    ["docs", "pull", "--limit", "1"],
+    ["auth", "validate"],
+]
+
+
+@pytest.mark.parametrize("argv", READER_COMMAND_MATRIX)
+def test_all_reader_commands_accept_trailing_raw(argv: list[str]) -> None:
+    assert reader_main([*argv, "--raw"]) == 0
+
+
+@pytest.mark.parametrize("argv", READER_COMMAND_MATRIX)
+def test_all_reader_commands_accept_trailing_dry_run(argv: list[str]) -> None:
+    assert reader_main([*argv, "--dry-run"]) == 0

@@ -396,6 +396,29 @@ def test_dry_run_flag_works_after_subcommand(capsys: pytest.CaptureFixture[str])
     assert "trailing flag test" in captured.out
 
 
+READWISE_COMMAND_MATRIX = [
+    ["books", "--limit", "1"],
+    ["book", "1337"],
+    ["highlights", "list", "--limit", "1"],
+    ["highlights", "review"],
+    ["highlight", "show", "13"],
+    ["highlight", "create", "--text", "matrix create", "--title", "Matrix Book"],
+    ["highlight", "update", "13", "--text", "matrix update"],
+    ["highlight", "delete", "13", "--yes"],
+    ["auth", "validate"],
+]
+
+
+@pytest.mark.parametrize("argv", READWISE_COMMAND_MATRIX)
+def test_all_readwise_commands_accept_trailing_raw(argv: list[str]) -> None:
+    assert readwise_main([*argv, "--raw"]) == 0
+
+
+@pytest.mark.parametrize("argv", READWISE_COMMAND_MATRIX)
+def test_all_readwise_commands_accept_trailing_dry_run(argv: list[str]) -> None:
+    assert readwise_main([*argv, "--dry-run"]) == 0
+
+
 def test_falsy_fields_omitted_in_markdown(capsys: pytest.CaptureFixture[str]) -> None:
     readwise_main(["book", "1337"])
     captured = capsys.readouterr()
