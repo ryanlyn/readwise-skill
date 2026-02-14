@@ -1,6 +1,6 @@
 # readwise-skill
 
-A plugin for using [Readwise](https://readwise.io) and [Reader](https://readwise.io/read) in your AI agents. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Claude Desktop / Cowork](https://claude.ai/download), and [OpenAI Codex](https://github.com/openai/codex).
+A plugin for using [Readwise](https://readwise.io) and [Reader](https://readwise.io/read) in your AI agents. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Claude Desktop / Cowork](https://claude.ai/download), [OpenAI Codex](https://github.com/openai/codex), [OpenClaw](https://github.com/nicobailon/openClaw), and other agent harnesses that support standalone skill zips.
 
 Shines when working across your entire library - extracting quotes from transcripts, saving generated highlights across multiple sources, triaging your inbox, connecting highlights across books.
 
@@ -91,20 +91,22 @@ Or store your token as a Claude Code secret so it persists across sessions.
 
 Install the plugin from the marketplace, then set `READWISE_TOKEN`. One option is to create a `.env` file in your project folder and open it in Claude Desktop / Cowork.
 
-### Codex
+### Standalone skill zips (Codex, OpenClaw, etc.)
 
 Skill zips are published as CI artifacts on each push to `main`. Download the latest from the [Actions tab](https://github.com/ryanlyn/readwise-skill/actions) or build from source (see Development).
 
-Install one or both skills (they work independently):
+Install one or both skills (they work independently). Set `SKILL_HOME` to whatever directory your agent harness uses for skills:
 
 ```bash
 VERSION="0.1.0"  # check CI artifacts for latest
-export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-unzip -o "readwise-${VERSION}.zip" -d "$CODEX_HOME/skills"
-unzip -o "readwise-reader-${VERSION}.zip" -d "$CODEX_HOME/skills"
+# Set SKILL_HOME for your harness, e.g.:
+#   Codex:    export SKILL_HOME="${CODEX_HOME:-$HOME/.codex}/skills"
+#   OpenClaw: export SKILL_HOME="$HOME/.openclaw/skills"
+unzip -o "readwise-${VERSION}.zip" -d "$SKILL_HOME"
+unzip -o "readwise-reader-${VERSION}.zip" -d "$SKILL_HOME"
 ```
 
-Codex looks for skills in `$CODEX_HOME/skills/` (default `~/.codex/skills/`). Start a new Codex session after installing.
+Start a new session after installing.
 
 ### Verify
 
@@ -123,9 +125,9 @@ Your Readwise access token grants full read/write access to your account. This p
 
 **Claude Desktop / Cowork:** Remove the plugin from Plugins.
 
-**Codex:**
+**Standalone skill zips:**
 ```bash
-rm -r "$CODEX_HOME/skills/readwise" "$CODEX_HOME/skills/readwise-reader"
+rm -r "$SKILL_HOME/readwise" "$SKILL_HOME/readwise-reader"
 ```
 
 ## Development

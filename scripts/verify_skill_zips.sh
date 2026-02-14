@@ -3,12 +3,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-python3 "$repo_root/scripts/build_codex_dist.py" --clean
+python3 "$repo_root/scripts/build_skill_zips.py" --clean
 
-tmp_dir="$(mktemp -d /tmp/readwise-codex-verify.XXXXXX)"
+tmp_dir="$(mktemp -d /tmp/readwise-skill-verify.XXXXXX)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-for zip_path in "$repo_root"/dist/codex/*.zip; do
+for zip_path in "$repo_root"/dist/zips/*.zip; do
   unzip -q "$zip_path" -d "$tmp_dir"
 done
 
@@ -35,4 +35,4 @@ done
 uv run --project "$tmp_dir/readwise" python "$tmp_dir/readwise/scripts/readwise_client.py" --help >/dev/null
 uv run --project "$tmp_dir/readwise-reader" python "$tmp_dir/readwise-reader/scripts/reader_client.py" --help >/dev/null
 
-echo "Codex artifacts verified: $repo_root/dist/codex"
+echo "Skill zip artifacts verified: $repo_root/dist/zips"

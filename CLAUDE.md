@@ -22,21 +22,21 @@ uv sync --extra dev
 uv run pytest tests/ -v
 ```
 
-## Codex distribution
+## Zip distribution
 
-Build standalone Codex skill zips:
+Build standalone skill zips (for any agent harness — Codex, OpenClaw, etc.):
 
 ```bash
-python3 scripts/build_codex_dist.py --clean
+python3 scripts/build_skill_zips.py --clean
 ```
 
 Run packaging verification (build + unzip + CLI startup checks):
 
 ```bash
-scripts/verify_codex_dist.sh
+scripts/verify_skill_zips.sh
 ```
 
-Artifacts are written to `dist/codex/`:
+Artifacts are written to `dist/zips/`:
 - `readwise-<version>.zip`
 - `readwise-reader-<version>.zip`
 
