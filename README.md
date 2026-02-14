@@ -89,7 +89,7 @@ Or store your token as a Claude Code secret so it persists across sessions.
 
 ### Claude Desktop / Cowork
 
-Install the plugin from the marketplace, then set `READWISE_TOKEN` in your environment.
+Install the plugin from the marketplace, then set `READWISE_TOKEN`. One option is to create a `.env` file in your project folder and open it in Claude Desktop / Cowork.
 
 ### Codex
 
