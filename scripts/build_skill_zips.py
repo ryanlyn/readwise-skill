@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build standalone Codex skill zip artifacts for Readwise skills."""
+"""Build standalone skill zip artifacts for Readwise skills."""
 
 from __future__ import annotations
 
@@ -31,16 +31,12 @@ class BuildConfig:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Build Codex zip distributions for Readwise skills."
-    )
+    parser = argparse.ArgumentParser(description="Build standalone zip distributions for Readwise skills.")
     parser.add_argument(
         "--version",
         help="Override artifact version (defaults to plugins/readwise/.claude-plugin/plugin.json)",
     )
-    parser.add_argument(
-        "--clean", action="store_true", help="Remove dist/codex before building"
-    )
+    parser.add_argument("--clean", action="store_true", help="Remove dist/zips before building")
     return parser.parse_args()
 
 
@@ -60,22 +56,16 @@ def read_version(plugin_root: Path, override: str | None) -> str:
 
 
 def transform_skill_markdown(raw: str, *, skill_name: str, cli_script: str) -> str:
-    codex_root_expr = f"${{CODEX_HOME:-$HOME/.codex}}/skills/{skill_name}"
+    skill_root_expr = f"${{SKILL_HOME}}/{skill_name}"
     transformed = raw
     transformed = transformed.replace(
         f"${{CLAUDE_PLUGIN_ROOT}}/skills/{skill_name}/scripts/{cli_script}",
-        f"{codex_root_expr}/scripts/{cli_script}",
+        f"{skill_root_expr}/scripts/{cli_script}",
     )
-    transformed = transformed.replace(
-        f"${{CLAUDE_PLUGIN_ROOT}}/skills/{skill_name}", codex_root_expr
-    )
-    transformed = transformed.replace(
-        "--project ${CLAUDE_PLUGIN_ROOT}", f"--project {codex_root_expr}"
-    )
-    transformed = transformed.replace(
-        "${CLAUDE_PLUGIN_ROOT}/readwise_common", f"{codex_root_expr}/readwise_common"
-    )
-    transformed = transformed.replace("${CLAUDE_PLUGIN_ROOT}", codex_root_expr)
+    transformed = transformed.replace(f"${{CLAUDE_PLUGIN_ROOT}}/skills/{skill_name}", skill_root_expr)
+    transformed = transformed.replace("--project ${CLAUDE_PLUGIN_ROOT}", f"--project {skill_root_expr}")
+    transformed = transformed.replace("${CLAUDE_PLUGIN_ROOT}/readwise_common", f"{skill_root_expr}/readwise_common")
+    transformed = transformed.replace("${CLAUDE_PLUGIN_ROOT}", skill_root_expr)
     return transformed
 
 
@@ -83,9 +73,9 @@ def render_pyproject(skill_name: str, version: str) -> str:
     deps = "\n".join(f'    "{dependency}",' for dependency in DEPENDENCIES)
     return (
         "[project]\n"
-        f'name = "readwise-codex-{skill_name}"\n'
+        f'name = "readwise-{skill_name}"\n'
         f'version = "{version}"\n'
-        'description = "Standalone Codex Readwise skill runtime"\n'
+        'description = "Standalone Readwise skill runtime"\n'
         'requires-python = ">=3.11"\n'
         "dependencies = [\n"
         f"{deps}\n"
@@ -107,27 +97,21 @@ def write_skill_tree(config: BuildConfig, spec: SkillSpec, staging_root: Path) -
     )
     (skill_root / "SKILL.md").write_text(transformed, encoding="utf-8")
 
-    shutil.copytree(
-        spec.source_dir / "scripts", skill_root / "scripts", ignore=IGNORE_PATTERNS
-    )
+    shutil.copytree(spec.source_dir / "scripts", skill_root / "scripts", ignore=IGNORE_PATTERNS)
     shutil.copytree(
         config.plugin_root / "readwise_common",
         skill_root / "readwise_common",
         ignore=IGNORE_PATTERNS,
     )
     shutil.copy2(config.repo_root / "LICENSE", skill_root / "LICENSE")
-    (skill_root / "pyproject.toml").write_text(
-        render_pyproject(spec.name, config.version), encoding="utf-8"
-    )
+    (skill_root / "pyproject.toml").write_text(render_pyproject(spec.name, config.version), encoding="utf-8")
 
     return skill_root
 
 
 def zip_skill_tree(skill_root: Path, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(
-        output_path, "w", compression=zipfile.ZIP_DEFLATED
-    ) as zip_file:
+    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
         for path in sorted(skill_root.rglob("*")):
             if path.is_file():
                 zip_file.write(path, arcname=path.relative_to(skill_root.parent))
@@ -152,7 +136,7 @@ def build(config: BuildConfig, *, clean: bool) -> list[Path]:
     ]
 
     outputs: list[Path] = []
-    with tempfile.TemporaryDirectory(prefix="readwise-codex-dist-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="readwise-skill-dist-") as temp_dir:
         staging_root = Path(temp_dir)
         for spec in skills:
             skill_root = write_skill_tree(config, spec, staging_root)
@@ -171,7 +155,7 @@ def main() -> int:
     config = BuildConfig(
         repo_root=repo_root,
         plugin_root=plugin_root,
-        dist_root=repo_root / "dist" / "codex",
+        dist_root=repo_root / "dist" / "zips",
         version=version,
     )
 
