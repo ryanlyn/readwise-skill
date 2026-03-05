@@ -1,6 +1,6 @@
 ---
 name: readwise
-description: "This skill should be used when the user asks to \"save a highlight to Readwise\", \"create a Readwise highlight\", \"show my Readwise books\", \"list highlights from a book\", \"review my daily highlights\", \"find highlights tagged with\", \"tag a highlight\", \"delete a highlight\", \"validate my Readwise token\", \"export highlights as markdown\", or needs guidance on the Readwise Original API (highlights, books, daily review)."
+description: Use this skill to work with the Readwise Original API for creating, organizing, and reviewing highlights and books.
 allowed-tools: Bash(uv run *)
 ---
 

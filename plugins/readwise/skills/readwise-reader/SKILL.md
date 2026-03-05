@@ -1,6 +1,6 @@
 ---
 name: readwise-reader
-description: "This skill should be used when the user asks to \"save an article to Reader\", \"save this URL to Readwise Reader\", \"show my Reader inbox\", \"list my Reader documents\", \"archive a document in Reader\", \"triage my reading list\", \"pull recent Reader updates\", \"check what's new in Reader\", \"validate my Readwise token for Reader\", or needs guidance on the Readwise Reader API (documents, articles, RSS, read states)."
+description: Use this skill to work with the Readwise Reader API for saving documents, triaging your reading queue, and updating read states.
 allowed-tools: Bash(uv run *)
 ---
 
