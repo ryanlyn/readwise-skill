@@ -36,9 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: scripts/verify_codex_dist.sh
+      - run: scripts/verify_skill_zips.sh
       - uses: actions/upload-artifact@v4
         with:
           name: codex-zips-${{ github.sha }}
-          path: dist/codex/*.zip
+          path: dist/zips/*.zip
           if-no-files-found: error
