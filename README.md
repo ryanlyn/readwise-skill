@@ -2,7 +2,19 @@
 
 A plugin for using [Readwise](https://readwise.io) and [Reader](https://readwise.io/read) in your AI agents. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Claude Desktop / Cowork](https://claude.ai/download), [OpenAI Codex](https://github.com/openai/codex), [OpenClaw](https://github.com/nicobailon/openClaw), and other agent harnesses that support standalone skill zips.
 
-Shines when working across your entire library - extracting quotes from transcripts, saving generated highlights across multiple sources, triaging your inbox, connecting highlights across books.
+It shines when working across your entire library - extracting quotes from transcripts, saving generated highlights across multiple sources, triaging your inbox, and connecting highlights across books.
+
+Compared with the official Readwise MCP ([docs](https://readwise.io), [npm](https://www.npmjs.com/package/@readwise/readwise-mcp)), this skill used `2.0x-9.4x` fewer end-to-end tokens across four overlapping read-only tasks with `GPT-5.4`; the MCP benchmarked here is also read-only and highlights-only, so daily review, highlight CRUD, and Reader workflows are outside its coverage.
+
+```text
+Cross-book comparison token shape
+= non-tool tokens
+# tool-result payload tokens
+
+skill [===####]                       ~5.1k
+mcp   [==##########################]  ~20.3k
+advantage: 4.0x
+```
 
 ## What you can do
 

@@ -1,0 +1,13 @@
+repeats_per_scenario: 5
+scenarios:
+  - id: search_highlights_by_topic
+    prompt: Find my highlights about investing.
+
+  - id: book_highlights_lookup
+    prompt: Show me all highlights from Meditations by Marcus Aurelius.
+
+  - id: compound_filter_query
+    prompt: Find highlights tagged 'generated' from articles updated in the last year.
+
+  - id: cross_reference_two_books
+    prompt: Compare highlights from Tools of Titans with Rich Dad Poor Dad.
