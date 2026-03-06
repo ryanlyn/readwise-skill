@@ -50,7 +50,12 @@ class TokenCounter:
         return max(1, len(text) // 4)
 
 
-def _json_post(url: str, payload: dict[str, Any], headers: dict[str, str], timeout_seconds: int = 60) -> dict[str, Any]:
+def _json_post(
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout_seconds: int = 60,
+) -> dict[str, Any]:
     retryable_codes = {408, 409, 429, 500, 502, 503, 504}
     attempt = 0
     last_error: Exception | None = None
@@ -85,7 +90,9 @@ def _json_post(url: str, payload: dict[str, Any], headers: dict[str, str], timeo
 def _readwise_token() -> str:
     token = os.getenv("READWISE_API_TOKEN") or os.getenv("READWISE_TOKEN")
     if not token:
-        raise RuntimeError("Missing Readwise token. Set READWISE_API_TOKEN or READWISE_TOKEN.")
+        raise RuntimeError(
+            "Missing Readwise token. Set READWISE_API_TOKEN or READWISE_TOKEN."
+        )
     return token
 
 
@@ -108,7 +115,14 @@ def _run_readwise_cli(args: list[str]) -> tuple[int, str, str]:
         str(READWISE_CLI),
         *args,
     ]
-    result = subprocess.run(command, capture_output=True, text=True, env=env, cwd=str(REPO_ROOT), check=False)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(REPO_ROOT),
+        check=False,
+    )
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
@@ -136,12 +150,16 @@ def _render_books_compact(books: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _render_highlights_compact(highlights: list[dict[str, Any]], *, limit: int = 20) -> str:
+def _render_highlights_compact(
+    highlights: list[dict[str, Any]], *, limit: int = 20
+) -> str:
     if not highlights:
         return "No highlights found."
     lines = []
     for item in highlights[:limit]:
-        title = item.get("title") or item.get("book_title") or item.get("document_title")
+        title = (
+            item.get("title") or item.get("book_title") or item.get("document_title")
+        )
         lines.append(
             "- "
             f"id={item.get('id')} | "
@@ -187,7 +205,13 @@ def _skill_search_highlights(args: dict[str, Any]) -> str:
     if keyword:
         fetch_limit = max(limit, 200)
 
-    cli_args = ["--raw", "highlights", "list", "--limit", str(max(1, min(fetch_limit, 500)))]
+    cli_args = [
+        "--raw",
+        "highlights",
+        "list",
+        "--limit",
+        str(max(1, min(fetch_limit, 500))),
+    ]
     if tag:
         cli_args.extend(["--tag", str(tag)])
     if category:
@@ -232,7 +256,9 @@ def _skill_search_highlights(args: dict[str, Any]) -> str:
 
         parsed = [item for item in parsed if isinstance(item, dict) and _matches(item)]
 
-    return _render_highlights_compact([i for i in parsed if isinstance(i, dict)], limit=min(limit, 40))
+    return _render_highlights_compact(
+        [i for i in parsed if isinstance(i, dict)], limit=min(limit, 40)
+    )
 
 
 def _mcp_search_highlights(args: dict[str, Any]) -> str:
@@ -258,7 +284,9 @@ def _mcp_search_highlights(args: dict[str, Any]) -> str:
         "Content-Type": "application/json",
         "X-Access-Token": _readwise_token(),
     }
-    response = _json_post(READWISE_MCP_HIGHLIGHTS_URL, payload, headers, timeout_seconds=60)
+    response = _json_post(
+        READWISE_MCP_HIGHLIGHTS_URL, payload, headers, timeout_seconds=60
+    )
     return json.dumps(response.get("results", []), ensure_ascii=False)
 
 
@@ -293,8 +321,14 @@ def _skill_tools_schema() -> list[dict[str, Any]]:
                         "book_id": {"type": "integer"},
                         "tag": {"type": "string"},
                         "category": {"type": "string"},
-                        "updated_after": {"type": "string", "description": "ISO date/datetime"},
-                        "updated_before": {"type": "string", "description": "ISO date/datetime"},
+                        "updated_after": {
+                            "type": "string",
+                            "description": "ISO date/datetime",
+                        },
+                        "updated_before": {
+                            "type": "string",
+                            "description": "ISO date/datetime",
+                        },
                         "keyword": {"type": "string"},
                         "limit": {"type": "integer", "minimum": 1, "maximum": 500},
                     },
@@ -427,7 +461,9 @@ def collect_trace(
 
     for step in range(1, max_steps + 1):
         try:
-            response = _chat_completion(model=model, messages=messages, tools=tools, temperature=temperature)
+            response = _chat_completion(
+                model=model, messages=messages, tools=tools, temperature=temperature
+            )
         except Exception as exc:  # noqa: BLE001
             error = str(exc)
             break
@@ -448,7 +484,10 @@ def collect_trace(
         assistant_content = message.get("content") or ""
         tool_calls = message.get("tool_calls") or []
 
-        assistant_message: dict[str, Any] = {"role": "assistant", "content": assistant_content}
+        assistant_message: dict[str, Any] = {
+            "role": "assistant",
+            "content": assistant_content,
+        }
         if tool_calls:
             assistant_message["tool_calls"] = tool_calls
         messages.append(assistant_message)

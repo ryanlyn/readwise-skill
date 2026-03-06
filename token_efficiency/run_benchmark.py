@@ -66,7 +66,9 @@ def load_prompts(path: Path) -> BenchmarkConfig:
             continue
         if line.startswith("- id:"):
             if current_id and current_prompt:
-                scenarios.append(Scenario(scenario_id=current_id, prompt=current_prompt))
+                scenarios.append(
+                    Scenario(scenario_id=current_id, prompt=current_prompt)
+                )
             current_id = _parse_quoted(line.split(":", 1)[1].strip())
             current_prompt = None
             continue
@@ -86,10 +88,14 @@ def _ensure_env() -> None:
         raise RuntimeError("READWISE_API_TOKEN or READWISE_TOKEN is required.")
 
 
-def _select_scenarios(all_scenarios: list[Scenario], selected: set[str] | None) -> list[Scenario]:
+def _select_scenarios(
+    all_scenarios: list[Scenario], selected: set[str] | None
+) -> list[Scenario]:
     if not selected:
         return all_scenarios
-    scenarios = [scenario for scenario in all_scenarios if scenario.scenario_id in selected]
+    scenarios = [
+        scenario for scenario in all_scenarios if scenario.scenario_id in selected
+    ]
     if not scenarios:
         raise RuntimeError(f"No matching scenarios for selection: {sorted(selected)}")
     return scenarios
@@ -127,12 +133,24 @@ def _collect_summaries(results: list[dict]) -> list[ScenarioSummary]:
                 scenario_id=scenario_id,
                 skill_runs=len(skill_runs),
                 mcp_runs=len(mcp_runs),
-                skill_success=sum(1 for run in skill_runs if run.get("status") == "success"),
-                mcp_success=sum(1 for run in mcp_runs if run.get("status") == "success"),
-                skill_total_tokens_median=_median(_metric_values(skill_runs, "total_tokens")),
-                mcp_total_tokens_median=_median(_metric_values(mcp_runs, "total_tokens")),
-                skill_tool_output_tokens_median=_median(_metric_values(skill_runs, "tool_output_tokens")),
-                mcp_tool_output_tokens_median=_median(_metric_values(mcp_runs, "tool_output_tokens")),
+                skill_success=sum(
+                    1 for run in skill_runs if run.get("status") == "success"
+                ),
+                mcp_success=sum(
+                    1 for run in mcp_runs if run.get("status") == "success"
+                ),
+                skill_total_tokens_median=_median(
+                    _metric_values(skill_runs, "total_tokens")
+                ),
+                mcp_total_tokens_median=_median(
+                    _metric_values(mcp_runs, "total_tokens")
+                ),
+                skill_tool_output_tokens_median=_median(
+                    _metric_values(skill_runs, "tool_output_tokens")
+                ),
+                mcp_tool_output_tokens_median=_median(
+                    _metric_values(mcp_runs, "tool_output_tokens")
+                ),
                 skill_turns_median=_median(_metric_values(skill_runs, "total_turns")),
                 mcp_turns_median=_median(_metric_values(mcp_runs, "total_turns")),
             )
@@ -161,12 +179,26 @@ def _render_report(
     prompts_path: Path,
 ) -> str:
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    token_modes = sorted({str(item.get("token_counter_mode", "")) for item in results if item.get("token_counter_mode")})
+    token_modes = sorted(
+        {
+            str(item.get("token_counter_mode", ""))
+            for item in results
+            if item.get("token_counter_mode")
+        }
+    )
 
-    overall_skill_total = _median([summary.skill_total_tokens_median for summary in summaries])
-    overall_mcp_total = _median([summary.mcp_total_tokens_median for summary in summaries])
-    overall_skill_tool = _median([summary.skill_tool_output_tokens_median for summary in summaries])
-    overall_mcp_tool = _median([summary.mcp_tool_output_tokens_median for summary in summaries])
+    overall_skill_total = _median(
+        [summary.skill_total_tokens_median for summary in summaries]
+    )
+    overall_mcp_total = _median(
+        [summary.mcp_total_tokens_median for summary in summaries]
+    )
+    overall_skill_tool = _median(
+        [summary.skill_tool_output_tokens_median for summary in summaries]
+    )
+    overall_mcp_tool = _median(
+        [summary.mcp_tool_output_tokens_median for summary in summaries]
+    )
     overall_skill_turns = _median([summary.skill_turns_median for summary in summaries])
     overall_mcp_turns = _median([summary.mcp_turns_median for summary in summaries])
     overall_skill_other = max(0.0, overall_skill_total - overall_skill_tool)
@@ -185,22 +217,38 @@ def _render_report(
 
     lines.append("## Overall")
     lines.append("")
-    lines.append(f"- `total_tokens` ratio (skill/mcp): `{_safe_ratio(overall_skill_total, overall_mcp_total):.3f}`")
-    lines.append(f"- `tool_output_tokens` ratio (skill/mcp): `{_safe_ratio(overall_skill_tool, overall_mcp_tool):.3f}`")
-    lines.append(f"- `total_turns` ratio (skill/mcp): `{_safe_ratio(overall_skill_turns, overall_mcp_turns):.3f}`")
+    lines.append(
+        f"- `total_tokens` ratio (skill/mcp): `{_safe_ratio(overall_skill_total, overall_mcp_total):.3f}`"
+    )
+    lines.append(
+        f"- `tool_output_tokens` ratio (skill/mcp): `{_safe_ratio(overall_skill_tool, overall_mcp_tool):.3f}`"
+    )
+    lines.append(
+        f"- `total_turns` ratio (skill/mcp): `{_safe_ratio(overall_skill_turns, overall_mcp_turns):.3f}`"
+    )
     lines.append("")
 
-    lines.append("`total_tokens` is the end-to-end measure for this harness: user prompt, system prompt, tool schema, tool-call arguments, tool results, and model output.")
-    lines.append("`tool_output_tokens` is diagnostic only: just the text returned from tools to the model. It does not include tool descriptions, system prompts, or full SKILL.md / MCP docs.")
-    lines.append("Those non-tool costs only appear inside `total_tokens` to the extent this harness actually injects them. This implementation uses minimal system prompts plus JSON tool schemas, not full SKILL.md.")
+    lines.append(
+        "`total_tokens` is the end-to-end measure for this harness: user prompt, system prompt, tool schema, tool-call arguments, tool results, and model output."
+    )
+    lines.append(
+        "`tool_output_tokens` is diagnostic only: just the text returned from tools to the model. It does not include tool descriptions, system prompts, or full SKILL.md / MCP docs."
+    )
+    lines.append(
+        "Those non-tool costs only appear inside `total_tokens` to the extent this harness actually injects them. This implementation uses minimal system prompts plus JSON tool schemas, not full SKILL.md."
+    )
     lines.append("")
 
     lines.append("## Token Shape")
     lines.append("")
     lines.append("Approximate median-of-medians breakdown:")
     lines.append("")
-    lines.append(f"`skill` { _bar(overall_skill_other, overall_skill_tool, 32, scale) } other~{overall_skill_other:.0f} + tool~{overall_skill_tool:.0f} = total~{overall_skill_total:.0f}")
-    lines.append(f"`mcp`   { _bar(overall_mcp_other, overall_mcp_tool, 32, scale) } other~{overall_mcp_other:.0f} + tool~{overall_mcp_tool:.0f} = total~{overall_mcp_total:.0f}")
+    lines.append(
+        f"`skill` {_bar(overall_skill_other, overall_skill_tool, 32, scale)} other~{overall_skill_other:.0f} + tool~{overall_skill_tool:.0f} = total~{overall_skill_total:.0f}"
+    )
+    lines.append(
+        f"`mcp`   {_bar(overall_mcp_other, overall_mcp_tool, 32, scale)} other~{overall_mcp_other:.0f} + tool~{overall_mcp_tool:.0f} = total~{overall_mcp_total:.0f}"
+    )
     lines.append("")
     lines.append("Legend: `=` non-tool tokens, `#` tool-result payload tokens")
     lines.append("")
@@ -231,26 +279,38 @@ def _render_report(
 
     lines.append("## Scenario Token Shape")
     lines.append("")
-    lines.append("Each bar splits median total tokens into non-tool tokens (`=`) and tool-result payload tokens (`#`).")
+    lines.append(
+        "Each bar splits median total tokens into non-tool tokens (`=`) and tool-result payload tokens (`#`)."
+    )
     lines.append("")
     for summary in summaries:
-        skill_other = max(0.0, summary.skill_total_tokens_median - summary.skill_tool_output_tokens_median)
-        mcp_other = max(0.0, summary.mcp_total_tokens_median - summary.mcp_tool_output_tokens_median)
-        scenario_scale = max(summary.skill_total_tokens_median, summary.mcp_total_tokens_median, 1.0) / 28
+        skill_other = max(
+            0.0,
+            summary.skill_total_tokens_median - summary.skill_tool_output_tokens_median,
+        )
+        mcp_other = max(
+            0.0, summary.mcp_total_tokens_median - summary.mcp_tool_output_tokens_median
+        )
+        scenario_scale = (
+            max(summary.skill_total_tokens_median, summary.mcp_total_tokens_median, 1.0)
+            / 28
+        )
         lines.append(f"`{summary.scenario_id}`")
         lines.append(
-            f"`skill` { _bar(skill_other, summary.skill_tool_output_tokens_median, 28, scenario_scale) } "
+            f"`skill` {_bar(skill_other, summary.skill_tool_output_tokens_median, 28, scenario_scale)} "
             f"other~{skill_other:.0f} + tool~{summary.skill_tool_output_tokens_median:.0f} = total~{summary.skill_total_tokens_median:.0f}"
         )
         lines.append(
-            f"`mcp`   { _bar(mcp_other, summary.mcp_tool_output_tokens_median, 28, scenario_scale) } "
+            f"`mcp`   {_bar(mcp_other, summary.mcp_tool_output_tokens_median, 28, scenario_scale)} "
             f"other~{mcp_other:.0f} + tool~{summary.mcp_tool_output_tokens_median:.0f} = total~{summary.mcp_total_tokens_median:.0f}"
         )
         lines.append("")
 
     lines.append("## Qualitative Findings")
     lines.append("")
-    lines.append("These findings come from a manual review of a full trace set captured during development. The traces are not kept in the repo, but the behavioral pattern was stable across runs.")
+    lines.append(
+        "These findings come from a manual review of a full trace set captured during development. The traces are not kept in the repo, but the behavioral pattern was stable across runs."
+    )
     lines.append("")
     for finding in QUALITATIVE_FINDINGS:
         lines.append(f"- {finding}")
@@ -259,15 +319,27 @@ def _render_report(
     lines.append("## Notes")
     lines.append("")
     lines.append("- `total_tokens` comes from provider usage fields.")
-    lines.append("- `tool_output_tokens` is estimated from tool-result payload text with the configured tokenizer.")
-    lines.append("- Tool descriptions, system prompts, and other non-tool context are reflected only in `total_tokens`, not in `tool_output_tokens`.")
+    lines.append(
+        "- `tool_output_tokens` is estimated from tool-result payload text with the configured tokenizer."
+    )
+    lines.append(
+        "- Tool descriptions, system prompts, and other non-tool context are reflected only in `total_tokens`, not in `tool_output_tokens`."
+    )
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the overlap benchmark and write a markdown report.")
-    parser.add_argument("--prompts", default="token_efficiency/prompts.yaml", help="Path to prompts YAML")
-    parser.add_argument("--report", default="token_efficiency/report.md", help="Output markdown report")
+    parser = argparse.ArgumentParser(
+        description="Run the overlap benchmark and write a markdown report."
+    )
+    parser.add_argument(
+        "--prompts",
+        default="token_efficiency/prompts.yaml",
+        help="Path to prompts YAML",
+    )
+    parser.add_argument(
+        "--report", default="token_efficiency/report.md", help="Output markdown report"
+    )
     parser.add_argument("--approach", choices=["skill", "mcp", "both"], default="both")
     parser.add_argument("--scenario", help="Single scenario id or comma-separated list")
     parser.add_argument("--repeats", type=int, help="Override repeats per prompt")
@@ -283,7 +355,11 @@ def main() -> int:
     report_path = Path(args.report).resolve()
     config = load_prompts(prompts_path)
     repeats = args.repeats if args.repeats is not None else config.repeats_per_scenario
-    selected = {part.strip() for part in args.scenario.split(",") if part.strip()} if args.scenario else None
+    selected = (
+        {part.strip() for part in args.scenario.split(",") if part.strip()}
+        if args.scenario
+        else None
+    )
     scenarios = _select_scenarios(config.scenarios, selected)
     approaches = _approaches(args.approach)
 
@@ -310,7 +386,9 @@ def main() -> int:
         for scenario in scenarios:
             for run_index in range(1, repeats + 1):
                 run_number += 1
-                print(f"[{run_number}/{total_runs}] approach={approach} scenario={scenario.scenario_id} run={run_index}")
+                print(
+                    f"[{run_number}/{total_runs}] approach={approach} scenario={scenario.scenario_id} run={run_index}"
+                )
                 result = collect_trace(
                     scenario=scenario,
                     approach=approach,
@@ -328,7 +406,12 @@ def main() -> int:
                 time.sleep(max(0.0, args.sleep_seconds))
 
     summaries = _collect_summaries(results)
-    report = _render_report(results=results, summaries=summaries, model=args.model, prompts_path=prompts_path)
+    report = _render_report(
+        results=results,
+        summaries=summaries,
+        model=args.model,
+        prompts_path=prompts_path,
+    )
     report_path.write_text(report, encoding="utf-8")
 
     print(f"Wrote report: {report_path}")
