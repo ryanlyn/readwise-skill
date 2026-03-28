@@ -2,8 +2,9 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+plugin_root="$repo_root/plugins/readwise"
 
-python3 "$repo_root/scripts/build_skill_zips.py" --clean
+uv run python "$repo_root/scripts/build_skill_zips.py" --clean
 
 tmp_dir="$(mktemp -d /tmp/readwise-skill-verify.XXXXXX)"
 trap 'rm -rf "$tmp_dir"' EXIT

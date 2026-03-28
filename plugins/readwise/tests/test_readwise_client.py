@@ -2,17 +2,24 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
+import sys
+from pathlib import Path
 
 import pytest
+import requests
+import typer
 
 from readwise_common.formatting import render_highlights, select_fields
 from readwise_common.models import (
     BookListParams,
+    Highlight,
     HighlightCreatePayload,
     HighlightListParams,
     HighlightUpdatePayload,
 )
 from readwise_common.utils import format_inline_tags, hoist_global_options
+from skills.readwise.scripts import readwise_client as readwise_module
 from skills.readwise.scripts.readwise_client import ReadwiseClient
 from skills.readwise.scripts.readwise_client import main as readwise_main
 
@@ -22,6 +29,23 @@ def readwise_client() -> ReadwiseClient:
     token = os.environ["READWISE_TOKEN"]
     base_url = os.environ["READWISE_API_BASE_URL"]
     return ReadwiseClient(token, base_url=base_url)
+
+
+class FakeResponse:
+    def __init__(self, payload: object, status_code: int = 200) -> None:
+        self._payload = payload
+        self.status_code = status_code
+        self.headers = {}
+
+    def json(self) -> object:
+        return self._payload
+
+
+def _raise_http_error(status_code: int | None) -> None:
+    response = requests.Response()
+    if status_code is not None:
+        response.status_code = status_code
+    raise requests.HTTPError("Unexpected auth response", response=response)
 
 
 def test_list_highlights_filters_by_book(readwise_client: ReadwiseClient) -> None:
@@ -73,6 +97,84 @@ def test_highlights_paginate_with_cursor(readwise_client: ReadwiseClient) -> Non
     highlights = list(readwise_client.list_highlights(HighlightListParams()))
     assert len(highlights) >= 5
     assert len({item.id for item in highlights}) == len(highlights)
+
+
+def test_paginate_uses_page_cursor(readwise_client: ReadwiseClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = iter(
+        [
+            FakeResponse({"results": [{"id": 1, "text": "first"}], "nextPageCursor": "cursor-2"}),
+            FakeResponse({"results": [{"id": 2, "text": "second"}]}),
+        ]
+    )
+    request_calls: list[dict[str, object]] = []
+
+    def fake_request(method: str, path: str, **kwargs: object) -> FakeResponse:
+        request_calls.append({"method": method, "path": path, "kwargs": kwargs})
+        return next(responses)
+
+    monkeypatch.setattr(readwise_client, "_request", fake_request)
+
+    items = list(readwise_client.paginate("/highlights/", {"tag": "focus"}))
+
+    assert [item["id"] for item in items] == [1, 2]
+    assert request_calls[0]["kwargs"] == {"params": {"tag": "focus"}}
+    assert request_calls[1]["kwargs"] == {"params": {"tag": "focus", "pageCursor": "cursor-2"}}
+
+
+def test_paginate_follows_next_url(readwise_client: ReadwiseClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    first = FakeResponse({"results": [{"id": 1, "text": "first"}], "next": "http://example.test/next"})
+    second = FakeResponse({"results": [{"id": 2, "text": "second"}]})
+    request_calls: list[tuple[str, str, dict[str, object]]] = []
+    backoff_calls: list[tuple[str, str, dict[str, object]]] = []
+
+    def fake_request(method: str, path: str, **kwargs: object) -> FakeResponse:
+        request_calls.append((method, path, kwargs))
+        return first
+
+    def fake_backoff(session: requests.Session, method: str, url: str, **kwargs: object) -> FakeResponse:
+        backoff_calls.append((method, url, kwargs))
+        return second
+
+    monkeypatch.setattr(readwise_client, "_request", fake_request)
+    monkeypatch.setattr(readwise_module, "request_with_backoff", fake_backoff)
+
+    items = list(readwise_client.paginate("/highlights/", {}))
+
+    assert [item["id"] for item in items] == [1, 2]
+    assert request_calls == [("get", "/highlights/", {"params": {}})]
+    assert backoff_calls == [("get", "http://example.test/next", {})]
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_id", "expected_text"),
+    [
+        (FakeResponse([{"id": 11, "text": "resolved", "modified_highlights": [99]}]), 99, "resolved"),
+        (FakeResponse([{"id": 12, "text": "plain"}]), 12, "plain"),
+        (FakeResponse({"highlights": [{"id": 13, "text": "nested"}]}), 13, "nested"),
+        (FakeResponse({"id": 14, "text": "fallback"}), 14, "fallback"),
+    ],
+)
+def test_create_highlight_handles_api_response_shapes(
+    readwise_client: ReadwiseClient,
+    monkeypatch: pytest.MonkeyPatch,
+    response: FakeResponse,
+    expected_id: int,
+    expected_text: str,
+) -> None:
+    payload = HighlightCreatePayload(text="created", location="1", location_type="order")
+    monkeypatch.setattr(readwise_client, "_request", lambda method, path, **kwargs: response)
+
+    if isinstance(response.json(), list) and response.json()[0].get("modified_highlights"):
+        monkeypatch.setattr(
+            readwise_client,
+            "get_highlight",
+            lambda highlight_id: Highlight(id=highlight_id, text=expected_text),
+        )
+
+    created = readwise_client.create_highlight(payload)
+
+    assert created.id == expected_id
+    assert created.text == expected_text
 
 
 def test_daily_review_returns_highlights(readwise_client: ReadwiseClient) -> None:
@@ -355,6 +457,302 @@ def test_highlights_list_uses_blockquote_format(capsys: pytest.CaptureFixture[st
 
 def test_readwise_validate_token(readwise_client: ReadwiseClient) -> None:
     readwise_client.validate_token()
+
+
+def test_validate_token_raises_for_non_204(readwise_client: ReadwiseClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        readwise_module,
+        "request_with_backoff",
+        lambda session, method, url, **kwargs: FakeResponse({}, status_code=401),
+    )
+
+    with pytest.raises(requests.HTTPError) as excinfo:
+        readwise_client.validate_token()
+
+    assert excinfo.value.response is not None
+    assert excinfo.value.response.status_code == 401
+
+
+def test_list_highlights_builds_query_with_all_filters(
+    readwise_client: ReadwiseClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_paginate(path: str, params: dict[str, object] | None = None):
+        captured["path"] = path
+        captured["params"] = params
+        yield {"id": 1, "text": "filtered"}
+
+    monkeypatch.setattr(readwise_client, "paginate", fake_paginate)
+
+    params = HighlightListParams(
+        book_id=1337,
+        tag="focus",
+        updated_after="2024-01-15T10:30:00Z",
+        updated_before="2024-02-01T10:30:00Z",
+        category="books",
+    )
+    results = list(readwise_client.list_highlights(params))
+
+    assert [item.id for item in results] == [1]
+    assert captured["path"] == "/highlights/"
+    assert captured["params"] == {
+        "book_id": 1337,
+        "tag": "focus",
+        "updatedAfter": "2024-01-15T10:30:00Z",
+        "updatedBefore": "2024-02-01T10:30:00Z",
+        "category": "books",
+    }
+
+
+def test_dry_run_methods_skip_network(readwise_client: ReadwiseClient) -> None:
+    dry_client = ReadwiseClient(
+        os.environ["READWISE_TOKEN"],
+        base_url=os.environ["READWISE_API_BASE_URL"],
+        dry_run=True,
+    )
+
+    updated = dry_client.update_highlight(13, HighlightUpdatePayload(color="pink"))
+    deleted = dry_client.delete_highlight(13)
+    tagged = dry_client.tag_highlight(13, "retrospective")
+
+    assert updated.dry_run is True
+    assert updated.highlight_id == 13
+    assert updated.request_payload == {"color": "pink"}
+    assert deleted.dry_run is True
+    assert deleted.action == "delete"
+    assert deleted.highlight_id == 13
+    assert tagged == {"dry_run": True, "highlight_id": 13, "tag": "retrospective"}
+
+
+def test_build_highlight_payload_preserves_inline_tag_mode() -> None:
+    payload = readwise_module._build_highlight_payload(
+        text="payload text",
+        text_file=None,
+        title="Title",
+        author="Author",
+        source_url="https://example.com",
+        image_url="https://example.com/image.png",
+        book_id=1337,
+        category="books",
+        note="Personal note",
+        tags_raw="alpha,beta",
+        location="12",
+        location_type="page",
+        generated=True,
+        require_text=True,
+        inline_tags=False,
+    )
+
+    assert payload["text"] == "payload text"
+    assert payload["title"] == "Title"
+    assert payload["author"] == "Author"
+    assert payload["source_url"] == "https://example.com"
+    assert payload["image_url"] == "https://example.com/image.png"
+    assert payload["book_id"] == 1337
+    assert payload["category"] == "books"
+    assert payload["note"] == "Personal note"
+    assert payload["_tags"] == ["alpha", "beta", ".generated"]
+    assert payload["location"] == "12"
+    assert payload["location_type"] == "page"
+
+
+def test_build_highlight_payload_raises_when_text_resolution_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_resolve_highlight_text(text: str | None, text_file: str | None) -> str:
+        raise ValueError("no text")
+
+    monkeypatch.setattr(readwise_module, "resolve_highlight_text", fake_resolve_highlight_text)
+
+    with pytest.raises(ValueError, match="no text"):
+        readwise_module._build_highlight_payload(
+            text=None,
+            text_file=None,
+            title=None,
+            author=None,
+            source_url=None,
+            image_url=None,
+            book_id=None,
+            category=None,
+            note=None,
+            tags_raw=None,
+            location=None,
+            location_type=None,
+            generated=False,
+            require_text=True,
+        )
+
+
+def test_normalize_bulk_payload_requires_text() -> None:
+    with pytest.raises(ValueError, match="Bulk highlight payloads require 'text'"):
+        readwise_module._normalize_bulk_payload({}, False)
+
+
+def test_normalize_bulk_payload_applies_tags_and_location() -> None:
+    payload = readwise_module._normalize_bulk_payload(
+        {
+            "text": "Bulk text",
+            "note": "My note",
+            "tags": "alpha, beta",
+            "generated": True,
+            "location": "5",
+            "location_type": "order",
+        },
+        default_generated=False,
+    )
+
+    assert payload["text"] == "Bulk text"
+    assert payload["note"] == ".alpha .beta .generated\nMy note"
+    assert payload["location"] == "5"
+    assert payload["location_type"] == "order"
+    assert "tags" not in payload
+
+
+def test_normalize_datetime_arg_rejects_invalid_input() -> None:
+    with pytest.raises(ValueError, match="--updated-after must be an ISO date or datetime"):
+        readwise_module._normalize_datetime_arg("--updated-after", "not-a-date")
+
+
+def test_highlight_create_rejects_missing_text_when_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(readwise_module.sys, "stdin", type("FakeStdin", (), {"isatty": lambda self: True})())
+
+    with pytest.raises(typer.BadParameter, match="Highlight text is required"):
+        readwise_main(["highlight", "create", "--title", "No Text"])
+
+
+def test_highlight_update_rejects_empty_payload_when_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(readwise_module.sys, "stdin", type("FakeStdin", (), {"isatty": lambda self: True})())
+
+    with pytest.raises(typer.BadParameter, match="No fields to update"):
+        readwise_main(["highlight", "update", "13"])
+
+
+def test_highlight_update_tags_only_fetches_updated_item(capsys: pytest.CaptureFixture[str]) -> None:
+    class FakeStdin:
+        def isatty(self) -> bool:
+            return True
+
+    original_stdin = readwise_module.sys.stdin
+    readwise_module.sys.stdin = FakeStdin()
+    try:
+        readwise_main(["--raw", "highlight", "update", "13", "--tags", "alpha,beta"])
+        captured = capsys.readouterr()
+    finally:
+        readwise_module.sys.stdin = original_stdin
+
+    data = json.loads(captured.out)
+    tag_names = {tag["name"] for tag in data["tags"]}
+    assert "alpha" in tag_names
+    assert "beta" in tag_names
+
+
+def test_highlight_delete_can_be_aborted(
+    readwise_client: ReadwiseClient, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+
+    readwise_main(["highlight", "delete", "13"])
+    captured = capsys.readouterr()
+
+    assert "Aborted" in captured.err
+    assert readwise_client.get_highlight(13).id == 13
+
+
+def test_highlight_create_reads_bulk_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    bulk_file = tmp_path / "highlights.ndjson"
+    bulk_file.write_text(
+        json.dumps(
+            {
+                "text": "Bulk created highlight",
+                "tags": "alpha,beta",
+                "location": "9",
+                "location_type": "order",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    readwise_main(["--raw", "highlight", "create", "--bulk-file", str(bulk_file)])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["text"] == "Bulk created highlight"
+    assert data[0]["tags"][0]["name"] == "alpha"
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_message"),
+    [
+        (401, "Token is invalid. Generate one at https://readwise.io/access_token"),
+        (403, "Token is unauthorized. Generate one at https://readwise.io/access_token"),
+        (500, "Token validation failed with status 500."),
+    ],
+)
+def test_auth_validate_handles_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+    expected_message: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_validate(self: ReadwiseClient) -> None:
+        _raise_http_error(status_code)
+
+    monkeypatch.setattr(readwise_module.ReadwiseClient, "validate_token", fake_validate)
+
+    readwise_main(["auth", "validate", "--raw"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+
+    assert data["valid"] is False
+    assert data["status"] == status_code
+    assert data["message"] == expected_message
+
+
+def test_auth_validate_handles_api_request_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fake_validate(self: ReadwiseClient) -> None:
+        raise readwise_module.APIRequestError("connection reset")
+
+    monkeypatch.setattr(readwise_module.ReadwiseClient, "validate_token", fake_validate)
+
+    readwise_main(["auth", "validate", "--raw"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+
+    assert data["valid"] is False
+    assert data["message"] == "Token validation failed: connection reset"
+
+
+def test_main_returns_one_for_system_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_app(args: list[str], standalone_mode: bool = False) -> None:
+        raise SystemExit("boom")
+
+    monkeypatch.setattr(readwise_module, "app", fake_app)
+
+    assert readwise_module.main([]) == 1
+
+
+def test_module_entrypoint_runs_main_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(typer.main.Typer, "__call__", lambda self, *args, **kwargs: 0)
+    module_path = Path(readwise_module.__file__).resolve()
+    original_argv = sys.argv[:]
+    sys.argv = [str(module_path)]
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            runpy.run_path(str(module_path), run_name="__main__")
+    finally:
+        sys.argv = original_argv
+
+    assert excinfo.value.code == 0
 
 
 READWISE_COMMAND_MATRIX = [

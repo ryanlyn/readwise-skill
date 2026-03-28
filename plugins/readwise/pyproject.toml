@@ -20,6 +20,7 @@ dependencies = [
 dev = [
     "flask>=2.3.0",
     "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
 ]
 
@@ -32,3 +33,19 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=readwise_common --cov=skills/readwise/scripts --cov=skills/readwise-reader/scripts --cov-report=term-missing:skip-covered --cov-fail-under=100"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = [
+    "readwise_common",
+    "skills/readwise/scripts",
+    "skills/readwise-reader/scripts",
+]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
