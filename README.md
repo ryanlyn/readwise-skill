@@ -110,7 +110,7 @@ Skill zips are published as CI artifacts on each push to `main`. Download the la
 Install one or both skills (they work independently). Set `SKILL_HOME` to whatever directory your agent harness uses for skills:
 
 ```bash
-VERSION="0.1.0"  # check CI artifacts for latest
+VERSION="0.2.1"  # check CI artifacts for latest
 # Set SKILL_HOME for your harness, e.g.:
 #   Codex:    export SKILL_HOME="${CODEX_HOME:-$HOME/.codex}/skills"
 #   OpenClaw: export SKILL_HOME="$HOME/.openclaw/skills"
