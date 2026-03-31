@@ -81,6 +81,10 @@ Readwise groups highlights into "books" (sources) using **(title, author, source
 
 Mismatched categories create duplicate book entries and break the user's library organization. When in doubt, ask the user or check existing entries with `books --title`.
 
+## Agent interaction rules
+- **Always quote highlights in full**: Never reference a highlight in the abstract. When displaying or communicating about a highlight to the user, always include the full highlight text in its entirety as a quoted markdown block (using `>`).
+- **Never save without confirmation**: Never save a highlight (create or update) without explicit user confirmation first. Draft the highlight, show it quoted, and wait for approval before calling the API.
+
 ## Data entry guidance
 - **Generated snippets**: Use `--generated` ONLY for highlights that are NOT verbatim quotes from the source content—e.g., AI-generated summaries, paraphrases, or synthesized insights. Do NOT use it for actual quotes or excerpts copied directly from the text. The CLI injects `.generated` for discoverability and sets `location_type=none` since generated content has no source location. Generated highlights should still use the SAME (title, author, source_url) as verbatim highlights from the same source.
 - **Highlight text**: supply `--text`, `--text-file`, or pipe content via stdin. The CLI refuses to guess. Bulk imports accept NDJSON rows with `text`, `title`, and `tags`.
